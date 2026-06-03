@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Percussion Practice Suite</title>
+    <style>
+        body {
+            background-color: #121212;
+            color: #ffffff;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            user-select: none;
+        }
+        #game-container { text-align: center; position: relative; }
+        canvas {
+            border: 4px solid #333;
+            background-color: #1a1a1a;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+        }
+        #ui-overlay { margin-top: 15px; font-size: 16px; min-height: 40px; color: #eccc68; line-height: 1.4; }
+        .btn {
+            background: #00cec9;
+            color: #121212;
+            border: none;
+            padding: 12px 24px;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: bold;
+            margin-top: 15px;
+            border-radius: 4px;
+        }
+        .btn:hover { background: #81ecec; }
+        #menu { display: block; }
+        #action-btn-container { margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="menu">
+        <h2>Select Practice Mode</h2>
+        <button class="btn" onclick="initGame('taiko')">Taiko Mode</button>
+        <button class="btn" onclick="initGame('phigros')">Phigros Mode</button>
+    </div>
+    <canvas id="gameCanvas" width="800" height="520" style="display:none;"></canvas>
+    <div id="ui-overlay"></div>
+    <div id="action-btn-container"></div>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const uiOverlay = document.getElementById('ui-overlay');
+const menu = document.getElementById('menu');
+const actionBtnContainer = document.getElementById('action-btn-container');
+
+// --- ENGINE CONSTANTS (60 BPM) ---
+const BPM = 60;
+const BEAT_DURATION = 60 / BPM; // 1.0s
+const SUB_BEAT_DURATION = BEAT_DURATION / 4; // 0.25s
+const WINDOW_MAX = 0.125; // 125ms
+
+const BEAT_PATTERNS = {
+    1: [1, 0, 0, 0], 2: [1, 0, 1, 0], 3: [1, 1, 1, 1], 4: [1, 0, 1, 1],
+    5: [1, 1, 1, 0], 6: [1, 1, 0, 1], 7: [1, 1, 0, 0], 8: [1, 0, 0, 1]
+};
+
+// --- AUDIO SYNTHESIS SYSTEM ---
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function playHitSound() {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+    gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.08);
+}
+
+// --- ASSET MANAGEMENT ---
+const images = {};
+for (let i = 1; i <= 8; i++) {
+    images[i] = new Image();
+    images[i].src = `${i}.jpg`;
+}
+
+// --- STATE MANAGEMENT ---
+let currentMode = '';
+let gameState = 'START'; 
+let currentQuestionIndex = 0;
+let questions = [];
+let questionScores = [];
+let activeNotes = [];
+let timelineStartTime = 0; 
+let lastCountdownBeatRegistered = -1;
+let liveInputLog = ""; 
+
+function generateSession() {
+    questions = [];
+    questionScores = [];
+    currentQuestionIndex = 0;
+    for(let i = 0; i < 5; i++) {
+        let patternCombination = [];
+        for(let j = 0; j < 4; j++) {
+            patternCombination.push(Math.floor(Math.random() * 5) + 1);
+        }
+        questions.push(patternCombination);
+    }
+}
+
+// --- CALIBRATED GAUSSIAN SCORE ENGINE ---
+function calculateAccuracyScore(offset) {
+    let x = Math.abs(offset);
+    if (x >= 0.120) return 0.0;
+    let score = 10.0 * Math.exp(-252 * (x * x));
+    return Math.max(0.0, Math.min(10.0, score));
+}
+
+// --- DOUBLE-TIME VISUAL JUDGMENTS ---
+function getJudgmentData(offset, isMissedEntirely) {
+    if (isMissedEntirely) return { color: '#ff4d4d', text: 'MISS' }; 
+    let absOffset = Math.abs(offset);
+    if (absOffset <= 0.030) return { color: '#2ecc71', text: 'PERFECT' };   
+    if (absOffset <= 0.060) return { color: '#f1c40f', text: 'GOOD' };      
+    if (absOffset <= 0.120) return { color: '#e67e22', text: 'BAD' };       
+    return { color: '#ff4d4d', text: 'MISS' };                              
+}
+
+function initGame(mode) {
+    currentMode = mode;
+    menu.style.display = 'none';
+    canvas.style.display = 'block';
+    generateSession();
+    buildTimelineForQuestion();
+    requestAnimationFrame(gameLoop);
+}
+
+function buildTimelineForQuestion() {
+    gameState = 'TIMELINE_RUNNING';
+    actionBtnContainer.innerHTML = '';
+    timelineStartTime = performance.now() / 1000;
+    lastCountdownBeatRegistered = -1;
+    activeNotes = [];
+    liveInputLog = "Waiting for inputs..."; 
+    
+    let patternIDs = questions[currentQuestionIndex];
+    let noteIdCounter = 0;
+    
+    for (let beatIdx = 0; beatIdx < 4; beatIdx++) {
+        let patternNum = patternIDs[beatIdx];
+        let subBeatMask = BEAT_PATTERNS[patternNum];
+        
+        for (let subIdx = 0; subIdx < 4; subIdx++) {
+            if (subBeatMask[subIdx] === 1) {
+                let targetTime = (4 * BEAT_DURATION) + (beatIdx * BEAT_DURATION) + (subIdx * SUB_BEAT_DURATION);
+                let randomizedColumn = Math.floor(Math.random() * 4); 
+                
+                activeNotes.push({
+                    id: noteIdCounter++, 
+                    targetOffset: targetTime,
+                    column: randomizedColumn,
+                    patternOrigin: patternNum,
+                    hitScore: null,
+                    hitOffset: null,
+                    processed: false,   
+                    missedEntirely: false
+                });
+            }
+        }
+    }
+}
+
+function endQuestion() {
+    gameState = 'QUESTION_SCORE';
+    let totalNotes = activeNotes.length;
+    let accumulated = 0;
+    activeNotes.forEach(note => { accumulated += note.hitScore; });
+    
+    let avg = totalNotes > 0 ? accumulated / totalNotes : 0.0;
+    questionScores.push(avg);
+    
+    if (currentQuestionIndex < 4) {
+        actionBtnContainer.innerHTML = `<button class="btn" onclick="nextQuestion()">Next Question</button>`;
+    } else {
+        actionBtnContainer.innerHTML = `<button class="btn" onclick="showGrandScoreboard()">View Final Scoreboard</button>`;
+    }
+}
+
+function nextQuestion() {
+    currentQuestionIndex++;
+    buildTimelineForQuestion();
+}
+
+function showGrandScoreboard() {
+    gameState = 'FINAL_SCOREBOARD';
+    actionBtnContainer.innerHTML = `<button class="btn" onclick="location.reload()">Play Again</button>`;
+}
+
+// --- CENTRALIZED DUAL-INPUT PARSER ---
+function handleHit(forcedColumn = null) {
+    if (gameState !== 'TIMELINE_RUNNING') return;
+    
+    let relativeTime = (performance.now() / 1000) - timelineStartTime;
+    let countdownEndTime = 4 * BEAT_DURATION;
+    
+    if (relativeTime >= (countdownEndTime - WINDOW_MAX)) {
+        playHitSound();
+    }
+    
+    for (let i = 0; i < activeNotes.length; i++) {
+        let note = activeNotes[i];
+        
+        if (!note.processed) {
+            if (forcedColumn !== null && note.column !== forcedColumn) {
+                continue; 
+            }
+            
+            let timeDifference = relativeTime - note.targetOffset;
+            if (Math.abs(timeDifference) <= WINDOW_MAX) {
+                note.hitOffset = timeDifference;
+                note.hitScore = calculateAccuracyScore(timeDifference);
+                note.processed = true; 
+                
+                let direction = timeDifference >= 0 ? "LATE" : "EARLY";
+                liveInputLog = `Last Hit: ${timeDifference.toFixed(4)}s (${direction}) | Lane: ${currentMode === 'taiko' ? 'Taiko Circle' : note.column + 1} | Score: ${note.hitScore.toFixed(2)}`;
+                break; 
+            }
+        }
+    }
+}
+
+// --- DESKTOP COMPUTER MAPPING ---
+window.addEventListener('keydown', (e) => { 
+    if (currentMode === 'taiko' && e.code === 'Space') {
+        e.preventDefault();
+        handleHit(null);
+    } 
+    else if (currentMode === 'phigros') {
+        let targets = { 'KeyC': 0, 'KeyV': 1, 'KeyB': 2, 'KeyN': 3 };
+        if (targets[e.code] !== undefined) {
+            e.preventDefault();
+            handleHit(targets[e.code]);
+        }
+    }
+});
+
+// --- SMART PHONE SMART SCREEN TOUCH SYSTEM ---
+canvas.addEventListener('touchstart', (e) => {
+    if (gameState !== 'TIMELINE_RUNNING') return;
+    e.preventDefault(); 
+    
+    let rect = canvas.getBoundingClientRect();
+    
+    if (currentMode === 'taiko') {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+            let touch = e.changedTouches[i];
+            
+            let touchX = ((touch.clientX - rect.left) / rect.width) * canvas.width;
+            let touchY = ((touch.clientY - rect.top) / rect.height) * canvas.height;
+            
+            let distance = Math.sqrt(Math.pow(touchX - 150, 2) + Math.pow(touchY - 320, 2));
+            if (distance <= 45) {
+                handleHit(null);
+            }
+        }
+    } 
+    else if (currentMode === 'phigros') {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+            let touch = e.changedTouches[i];
+            let canvasRelativeX = touch.clientX - rect.left;
+            
+            let calculatedColumn = Math.floor((canvasRelativeX / rect.width) * 4);
+            calculatedColumn = Math.max(0, Math.min(3, calculatedColumn));
+            
+            handleHit(calculatedColumn);
+        }
+    }
+}, {passive: false});
+
+function gameLoop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    let timeNow = performance.now() / 1000;
+    let relativeTime = timeNow - timelineStartTime;
+    let countdownEndTime = 4 * BEAT_DURATION;
+    
+    if (gameState !== 'FINAL_SCOREBOARD') {
+        let patternIDs = questions[currentQuestionIndex];
+        ctx.fillStyle = '#222';
+        ctx.fillRect(0, 0, canvas.width, 110);
+        
+        let currentActiveImageIndex = -1;
+        if (gameState === 'TIMELINE_RUNNING' && relativeTime >= countdownEndTime) {
+            currentActiveImageIndex = Math.floor((relativeTime - countdownEndTime) / BEAT_DURATION);
+        }
+        
+        let imgWidth = canvas.width / 4; 
+        for (let i = 0; i < 4; i++) {
+            let imgId = patternIDs[i];
+            let xPos = i * imgWidth;
+            
+            if (images[imgId] && images[imgId].complete) {
+                ctx.drawImage(images[imgId], xPos, 0, imgWidth, 110);
+            } else {
+                ctx.strokeStyle = '#555';
+                ctx.strokeRect(xPos, 0, imgWidth, 110);
+                ctx.fillStyle = '#fff';
+                ctx.font = '14px Courier New';
+                ctx.fillText(`Pattern ${imgId}.jpg`, xPos + 40, 60);
+            }
+            
+            if (i === currentActiveImageIndex) {
+                ctx.strokeStyle = '#00cec9';
+                ctx.lineWidth = 4;
+                ctx.strokeRect(xPos + 2, 2, imgWidth - 4, 106);
+            }
+        }
+    }
+
+    if (gameState === 'TIMELINE_RUNNING') {
+        if (relativeTime < countdownEndTime) {
+            let currentCountdownBeat = Math.floor(relativeTime / BEAT_DURATION);
+            if (currentCountdownBeat !== lastCountdownBeatRegistered && currentCountdownBeat < 4) {
+                lastCountdownBeatRegistered = currentCountdownBeat;
+                playHitSound(); 
+            }
+        }
+
+        if (currentMode === 'taiko') {
+            let judgmentLineX = 150;
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 4;
+            ctx.beginPath(); ctx.arc(judgmentLineX, 320, 35, 0, Math.PI * 2); ctx.stroke();
+            
+            ctx.fillStyle = 'rgba(255,255,255,0.05)';
+            ctx.fillRect(0, 285, canvas.width, 70);
+            
+            activeNotes.forEach(note => {
+                let xPos = judgmentLineX + ((note.targetOffset - relativeTime) * 400);
+                
+                if (relativeTime > note.targetOffset + WINDOW_MAX) {
+                    let judgment = getJudgmentData(note.hitOffset, note.missedEntirely);
+                    ctx.fillStyle = judgment.color;
+                    
+                    if (xPos > 0 && xPos < canvas.width) {
+                        ctx.beginPath(); ctx.arc(xPos, 320, 15, 0, Math.PI * 2); ctx.fill();
+                        ctx.font = 'bold 10px Courier New';
+                        ctx.fillText(judgment.text, xPos - 20, 295);
+                    }
+                } else {
+                    if (xPos > judgmentLineX - 40 && xPos < canvas.width + 40) {
+                        ctx.fillStyle = '#ffffff'; 
+                        ctx.beginPath(); ctx.arc(xPos, 320, 20, 0, Math.PI * 2); ctx.fill();
+                    }
+                }
+            });
+            
+        } else if (currentMode === 'phigros') {
+            let colWidth = canvas.width / 4;
+            for(let i=0; i<4; i++) {
+                ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+                ctx.strokeRect(i * colWidth, 110, colWidth, canvas.height - 110);
+                ctx.fillStyle = 'rgba(0, 184, 148, 0.15)';
+                ctx.fillRect(i * colWidth + 10, canvas.height - 60, colWidth - 20, 30);
+            }
+            
+            activeNotes.forEach(note => {
+                let colCenterX = (note.column * colWidth) + (colWidth / 2);
+                let yPos = (canvas.height - 45) - ((note.targetOffset - relativeTime) * 450);
+                
+                // Fixed: Explicit rendering isolation logic based on processing state
+                if (note.processed) {
+                    let judgment = getJudgmentData(note.hitOffset, note.missedEntirely);
+                    
+                    // Keep flashing judgment visual indicators on line for 350ms after passing
+                    if (relativeTime <= note.targetOffset + WINDOW_MAX + 0.350) {
+                        ctx.fillStyle = judgment.color;
+                        ctx.beginPath(); ctx.arc(colCenterX, canvas.height - 45, 12, 0, Math.PI * 2); ctx.fill();
+                        ctx.font = 'bold 12px Courier New';
+                        ctx.textAlign = 'center';
+                        ctx.fillText(judgment.text, colCenterX, canvas.height - 70);
+                        ctx.textAlign = 'left'; // Reset standard configuration alignment
+                    }
+                } else {
+                    if (yPos > 110 && yPos < canvas.height) {
+                        ctx.fillStyle = '#00cec9';
+                        ctx.beginPath(); ctx.arc(colCenterX, yPos, 16, 0, Math.PI * 2); ctx.fill();
+                    }
+                }
+            });
+        }
+
+        if (relativeTime < countdownEndTime) {
+            let exactRemainingBeats = 4 - (relativeTime / BEAT_DURATION);
+            let barsToDraw = Math.ceil(exactRemainingBeats);
+            
+            ctx.fillStyle = '#eccc68';
+            for (let i = 0; i < barsToDraw; i++) {
+                ctx.fillRect(260 + (i * 70), 200, 50, 20);
+            }
+            uiOverlay.innerHTML = `Countdown Phase Active... Bars Remaining: ${barsToDraw}`;
+        } else {
+            let playedCount = 0;
+            activeNotes.forEach(note => {
+                if (relativeTime > note.targetOffset + WINDOW_MAX && !note.processed) {
+                    note.hitScore = 0.0;
+                    note.missedEntirely = true;
+                    note.processed = true; 
+                }
+                if (note.processed) playedCount++;
+            });
+            
+            uiOverlay.innerHTML = `Question ${currentQuestionIndex + 1}/5 | Hits Evaluated: ${playedCount}/${activeNotes.length}<br><span style="color:#00cec9; font-weight:bold;">${liveInputLog}</span>`;
+        }
+        
+        if (relativeTime >= (8 * BEAT_DURATION)) {
+            endQuestion();
+        }
+    }
+
+    if (gameState === 'QUESTION_SCORE') {
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 24px Courier New';
+        ctx.fillText(`QUESTION ${currentQuestionIndex + 1} SCORE`, 280, 180);
+        
+        let currentAvg = questionScores[currentQuestionIndex] || 0;
+        ctx.font = '36px Courier New';
+        ctx.fillStyle = '#eccc68';
+        ctx.fillText(`${currentAvg.toFixed(2)} / 10.00`, 270, 235);
+        
+        ctx.font = '14px Courier New';
+        ctx.fillStyle = '#85929E';
+        ctx.fillText("Hit Breakdown for this Question Pattern:", 50, 280);
+        
+        activeNotes.forEach((note, index) => {
+            let isSecondColumn = index >= 8;
+            let colX = isSecondColumn ? 430 : 50;
+            let targetRowIndex = isSecondColumn ? index - 8 : index;
+            let rowY = 310 + (targetRowIndex * 24);
+            
+            let offsetStr = note.missedEntirely ? "MISSED" : `${note.hitOffset >= 0 ? "+" : ""}${note.hitOffset.toFixed(4)}s`;
+            
+            ctx.fillStyle = note.missedEntirely ? '#ff4d4d' : '#fff';
+            ctx.fillText(`N${index + 1} (Col${note.column + 1}): Off:${offsetStr} | Scr:${note.hitScore.toFixed(2)}`, colX, rowY);
+        });
+        
+        uiOverlay.innerHTML = `Review your pattern execution above before proceeding.`;
+    }
+
+    if (gameState === 'FINAL_SCOREBOARD') {
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 24px Courier New';
+        ctx.fillText('PERFORMANCE SUMMARY', 260, 150);
+        
+        ctx.font = '18px Courier New';
+        let grandTotal = 0;
+        for (let i = 0; i < 5; i++) {
+            let score = questionScores[i] || 0;
+            grandTotal += score;
+            ctx.fillText(`Question ${i + 1}: ............ ${score.toFixed(1)} / 10.0`, 230, 210 + (i * 35));
+        }
+        
+        ctx.strokeStyle = '#555';
+        ctx.beginPath(); ctx.moveTo(220, 390); ctx.lineTo(580, 390); ctx.stroke();
+        
+        ctx.font = 'bold 22px Courier New';
+        ctx.fillStyle = '#00cec9';
+        ctx.fillText(`GRAND TOTAL: ...... ${grandTotal.toFixed(2)} / 50.00`, 230, 420);
+        uiOverlay.innerHTML = "Session Complete!";
+    }
+
+    requestAnimationFrame(gameLoop);
+}
+</script>
+</body>
+</html>
