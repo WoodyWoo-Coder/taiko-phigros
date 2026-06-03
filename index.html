@@ -1,13 +1,13 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>Percussion Practice Suite</title>
+    <title>擊擊復擊擊 - Percussion Practice Suite</title>
     <style>
         body {
-            background-color: #121212;
+            background-color: #0c0c0e;
             color: #ffffff;
-            font-family: 'Courier New', Courier, monospace;
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Microsoft JhengHei', sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -17,37 +17,98 @@
             overflow: hidden;
             user-select: none;
         }
-        #game-container { text-align: center; position: relative; }
+        #game-container { text-align: center; position: relative; max-width: 850px; }
+        h1 { font-size: 36px; margin-bottom: 5px; color: #00cec9; letter-spacing: 3px; }
+        .credits { font-size: 14px; color: #747d8c; margin-bottom: 25px; }
+        
+        /* Layout Structure styling */
+        .mode-container { display: flex; justify-content: center; gap: 15px; margin-bottom: 20px; }
+        
         canvas {
-            border: 4px solid #333;
-            background-color: #1a1a1a;
-            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            border: 4px solid #2f3542;
+            background-color: #151518;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+            border-radius: 6px;
         }
-        #ui-overlay { margin-top: 15px; font-size: 16px; min-height: 40px; color: #eccc68; line-height: 1.4; }
+        #ui-overlay { margin-top: 15px; font-size: 18px; min-height: 45px; color: #eccc68; font-weight: 500; }
+        
+        /* Button Configurations */
         .btn {
-            background: #00cec9;
-            color: #121212;
-            border: none;
-            padding: 12px 24px;
+            background: #2f3542;
+            color: #a4b0be;
+            border: 2px solid #57606f;
+            padding: 14px 32px;
             cursor: pointer;
             font-size: 18px;
             font-weight: bold;
-            margin-top: 15px;
-            border-radius: 4px;
+            border-radius: 6px;
+            transition: all 0.2s ease;
         }
-        .btn:hover { background: #81ecec; }
-        #menu { display: block; }
-        #action-btn-container { margin-top: 10px; }
+        .btn.selected {
+            background: #00cec9;
+            color: #0c0c0e;
+            border-color: #00cec9;
+            box-shadow: 0 0 15px rgba(0, 206, 201, 0.4);
+        }
+        .btn-action {
+            background: #ff4757;
+            color: #ffffff;
+            border: none;
+            padding: 16px 48px;
+            cursor: pointer;
+            font-size: 20px;
+            font-weight: bold;
+            border-radius: 6px;
+            margin-top: 15px;
+            box-shadow: 0 4px 14px rgba(255, 71, 87, 0.4);
+            transition: all 0.2s ease;
+        }
+        .btn-action:disabled {
+            background: #2f3542 !important;
+            color: #57606f !important;
+            cursor: not-allowed;
+            box-shadow: none;
+            opacity: 0.5;
+        }
+        .btn-action:hover:not(:disabled) { background: #ff6b81; transform: translateY(-2px); }
+        
+        /* Tutorial Panel rules */
+        #tutorial-panel {
+            background: #1e1e24;
+            border: 2px solid #2f3542;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            text-align: left;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        #tutorial-panel h3 { color: #00cec9; margin-top: 0; }
+        #tutorial-panel code { background: #0c0c0e; padding: 2px 6px; border-radius: 4px; color: #ff7f50; }
     </style>
 </head>
 <body>
 
 <div id="game-container">
     <div id="menu">
-        <h2>Select Practice Mode</h2>
-        <button class="btn" onclick="initGame('taiko')">Taiko Mode</button>
-        <button class="btn" onclick="initGame('phigros')">Phigros Mode</button>
+        <h1>擊擊復擊擊</h1>
+        <div class="credits">製作者: 郭覲德 林映澄</div>
+        
+        <div id="tutorial-panel">
+            <h3>玩法教學 (Tutorial)</h3>
+            • <b>太鼓模式：</b>音符抵達左側判定圈時，按下 <code>空白鍵 (Space)</code> 進行敲擊。<br>
+            • <b>音遊模式：</b>矩形條由上往下掉落，抵達底部判定線時，按對應軌道鍵 <code>C</code> <code>V</code> <code>B</code> <code>N</code> 進行敲擊。<br>
+            • <b>判定精準度：</b>越接近完美時間點分數越高，分為 <span style="color:#2ecc71">PERFECT</span>、<span style="color:#f1c40f">GOOD</span>、<span style="color:#e67e22">BAD</span>、<span style="color:#ff4d4d">MISS</span>。
+        </div>
+
+        <div class="mode-container">
+            <button id="btn-taiko" class="btn" onclick="selectMode('taiko')">太鼓模式</button>
+            <button id="btn-phigros" class="btn" onclick="selectMode('phigros')">音遊模式</button>
+        </div>
+        
+        <button id="btn-start" class="btn-action" onclick="startGame()" disabled>開始遊戲</button>
     </div>
+
     <canvas id="gameCanvas" width="800" height="520" style="display:none;"></canvas>
     <div id="ui-overlay"></div>
     <div id="action-btn-container"></div>
@@ -60,11 +121,16 @@ const uiOverlay = document.getElementById('ui-overlay');
 const menu = document.getElementById('menu');
 const actionBtnContainer = document.getElementById('action-btn-container');
 
+// Mode buttons references
+const btnTaiko = document.getElementById('btn-taiko');
+const btnPhigros = document.getElementById('btn-phigros');
+const btnStart = document.getElementById('btn-start');
+
 // --- ENGINE CONSTANTS (60 BPM) ---
 const BPM = 60;
-const BEAT_DURATION = 60 / BPM; // 1.0s
-const SUB_BEAT_DURATION = BEAT_DURATION / 4; // 0.25s
-const WINDOW_MAX = 0.125; // 125ms
+const BEAT_DURATION = 60 / BPM; 
+const SUB_BEAT_DURATION = BEAT_DURATION / 4; 
+const WINDOW_MAX = 0.125; 
 
 const BEAT_PATTERNS = {
     1: [1, 0, 0, 0], 2: [1, 0, 1, 0], 3: [1, 1, 1, 1], 4: [1, 0, 1, 1],
@@ -72,19 +138,72 @@ const BEAT_PATTERNS = {
 };
 
 // --- AUDIO SYNTHESIS SYSTEM ---
-const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+let audioCtx = null;
+
+// Cold-boot audio setup to eliminate first beat lag entirely
+function warmupAudioContext() {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+}
+
 function playHitSound() {
-    if (audioCtx.state === 'suspended') audioCtx.resume();
+    warmupAudioContext();
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     osc.connect(gain);
     gain.connect(audioCtx.destination);
     osc.type = 'triangle';
-    osc.frequency.setValueAtTime(600, audioCtx.currentTime);
-    gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08);
+    osc.frequency.setValueAtTime(440, audioCtx.currentTime); 
+    gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.20); 
     osc.start();
-    osc.stop(audioCtx.currentTime + 0.08);
+    osc.stop(audioCtx.currentTime + 0.20);
+}
+
+// Re-tuned Pure 8-bit Mario Kart Starting Sound Engine
+function scheduleBeep(frequency, startTime, duration, step) {
+    warmupAudioContext();
+    const osc = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+
+    osc.type = 'square'; 
+    osc.frequency.setValueAtTime(frequency, startTime);
+
+    gainNode.gain.setValueAtTime(0.2, startTime); 
+    
+    if (step === 4) {
+        // High sprint finish held crisp for 0.5s total duration
+        gainNode.gain.setValueAtTime(0.2, startTime + 0.3);
+        gainNode.gain.linearRampToValueAtTime(0.0, startTime + duration);
+    } else {
+        gainNode.gain.setValueAtTime(0.2, startTime + duration - 0.01);
+        gainNode.gain.linearRampToValueAtTime(0.0, startTime + duration);
+    }
+
+    osc.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    
+    osc.start(startTime);
+    osc.stop(startTime + duration);
+}
+
+function playScoreTickSound(val, maxVal) {
+    warmupAudioContext();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.type = 'square';
+    let ratio = val / maxVal;
+    osc.frequency.setValueAtTime(150 + (ratio * 400), audioCtx.currentTime);
+    gain.gain.setValueAtTime(0.10, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.04);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.04);
 }
 
 // --- ASSET MANAGEMENT ---
@@ -103,7 +222,42 @@ let questionScores = [];
 let activeNotes = [];
 let timelineStartTime = 0; 
 let lastCountdownBeatRegistered = -1;
-let liveInputLog = ""; 
+
+// Scoreboard Machine Variables
+let rollingScoreDisplay = 0.0;
+let targetFinalScore = 0.0;
+let lastTickTime = 0;
+
+function selectMode(mode) {
+    currentMode = mode;
+    
+    // Warm up pipeline on initial input interaction to defeat audio lag
+    warmupAudioContext();
+    
+    if (mode === 'taiko') {
+        btnTaiko.classList.add('selected');
+        btnPhigros.classList.remove('selected');
+    } else {
+        btnPhigros.classList.add('selected');
+        btnTaiko.classList.add('selected');
+        btnTaiko.classList.remove('selected');
+    }
+    
+    btnStart.disabled = false;
+    btnStart.style.background = '#00cec9';
+    btnStart.style.color = '#0c0c0e';
+}
+
+function startGame() {
+    if (!currentMode) return;
+
+    warmupAudioContext();
+    menu.style.display = 'none';
+    canvas.style.display = 'block';
+    generateSession();
+    buildTimelineForQuestion();
+    requestAnimationFrame(gameLoop);
+}
 
 function generateSession() {
     questions = [];
@@ -118,7 +272,6 @@ function generateSession() {
     }
 }
 
-// --- CALIBRATED GAUSSIAN SCORE ENGINE ---
 function calculateAccuracyScore(offset) {
     let x = Math.abs(offset);
     if (x >= 0.120) return 0.0;
@@ -126,7 +279,6 @@ function calculateAccuracyScore(offset) {
     return Math.max(0.0, Math.min(10.0, score));
 }
 
-// --- DOUBLE-TIME VISUAL JUDGMENTS ---
 function getJudgmentData(offset, isMissedEntirely) {
     if (isMissedEntirely) return { color: '#ff4d4d', text: 'MISS' }; 
     let absOffset = Math.abs(offset);
@@ -136,22 +288,15 @@ function getJudgmentData(offset, isMissedEntirely) {
     return { color: '#ff4d4d', text: 'MISS' };                              
 }
 
-function initGame(mode) {
-    currentMode = mode;
-    menu.style.display = 'none';
-    canvas.style.display = 'block';
-    generateSession();
-    buildTimelineForQuestion();
-    requestAnimationFrame(gameLoop);
-}
-
 function buildTimelineForQuestion() {
     gameState = 'TIMELINE_RUNNING';
     actionBtnContainer.innerHTML = '';
+    
+    // Ensure accurate syncing across frame execution bounds
+    warmupAudioContext();
     timelineStartTime = performance.now() / 1000;
     lastCountdownBeatRegistered = -1;
     activeNotes = [];
-    liveInputLog = "Waiting for inputs..."; 
     
     let patternIDs = questions[currentQuestionIndex];
     let noteIdCounter = 0;
@@ -189,10 +334,14 @@ function endQuestion() {
     let avg = totalNotes > 0 ? accumulated / totalNotes : 0.0;
     questionScores.push(avg);
     
+    rollingScoreDisplay = 0.0;
+    targetFinalScore = avg;
+    lastTickTime = performance.now();
+
     if (currentQuestionIndex < 4) {
-        actionBtnContainer.innerHTML = `<button class="btn" onclick="nextQuestion()">Next Question</button>`;
+        actionBtnContainer.innerHTML = `<button class="btn-action" style="margin-top:0;" onclick="nextQuestion()">下一題</button>`;
     } else {
-        actionBtnContainer.innerHTML = `<button class="btn" onclick="showGrandScoreboard()">View Final Scoreboard</button>`;
+        actionBtnContainer.innerHTML = `<button class="btn-action" style="margin-top:0;" onclick="showGrandScoreboard()">結算總成績</button>`;
     }
 }
 
@@ -202,11 +351,13 @@ function nextQuestion() {
 }
 
 function showGrandScoreboard() {
+    rollingScoreDisplay = 0.0;
+    targetFinalScore = questionScores.reduce((a, b) => a + b, 0);
+    lastTickTime = performance.now();
+    actionBtnContainer.innerHTML = `<button class="btn-action" style="margin-top:0;" onclick="location.reload()">再玩一次</button>`;
     gameState = 'FINAL_SCOREBOARD';
-    actionBtnContainer.innerHTML = `<button class="btn" onclick="location.reload()">Play Again</button>`;
 }
 
-// --- CENTRALIZED DUAL-INPUT PARSER ---
 function handleHit(forcedColumn = null) {
     if (gameState !== 'TIMELINE_RUNNING') return;
     
@@ -230,9 +381,7 @@ function handleHit(forcedColumn = null) {
                 note.hitOffset = timeDifference;
                 note.hitScore = calculateAccuracyScore(timeDifference);
                 note.processed = true; 
-                
-                let direction = timeDifference >= 0 ? "LATE" : "EARLY";
-                liveInputLog = `Last Hit: ${timeDifference.toFixed(4)}s (${direction}) | Lane: ${currentMode === 'taiko' ? 'Taiko Circle' : note.column + 1} | Score: ${note.hitScore.toFixed(2)}`;
+                note.hitTimestamp = relativeTime;
                 break; 
             }
         }
@@ -254,7 +403,7 @@ window.addEventListener('keydown', (e) => {
     }
 });
 
-// --- SMART PHONE SMART SCREEN TOUCH SYSTEM ---
+// --- SMART PHONE SCREEN TOUCH SYSTEM ---
 canvas.addEventListener('touchstart', (e) => {
     if (gameState !== 'TIMELINE_RUNNING') return;
     e.preventDefault(); 
@@ -264,12 +413,11 @@ canvas.addEventListener('touchstart', (e) => {
     if (currentMode === 'taiko') {
         for (let i = 0; i < e.changedTouches.length; i++) {
             let touch = e.changedTouches[i];
-            
             let touchX = ((touch.clientX - rect.left) / rect.width) * canvas.width;
             let touchY = ((touch.clientY - rect.top) / rect.height) * canvas.height;
             
             let distance = Math.sqrt(Math.pow(touchX - 150, 2) + Math.pow(touchY - 320, 2));
-            if (distance <= 45) {
+            if (distance <= 65) {
                 handleHit(null);
             }
         }
@@ -295,7 +443,7 @@ function gameLoop() {
     
     if (gameState !== 'FINAL_SCOREBOARD') {
         let patternIDs = questions[currentQuestionIndex];
-        ctx.fillStyle = '#222';
+        ctx.fillStyle = '#1e1e24';
         ctx.fillRect(0, 0, canvas.width, 110);
         
         let currentActiveImageIndex = -1;
@@ -311,11 +459,11 @@ function gameLoop() {
             if (images[imgId] && images[imgId].complete) {
                 ctx.drawImage(images[imgId], xPos, 0, imgWidth, 110);
             } else {
-                ctx.strokeStyle = '#555';
+                ctx.strokeStyle = '#3a3a44';
                 ctx.strokeRect(xPos, 0, imgWidth, 110);
                 ctx.fillStyle = '#fff';
-                ctx.font = '14px Courier New';
-                ctx.fillText(`Pattern ${imgId}.jpg`, xPos + 40, 60);
+                ctx.font = '14px Segoe UI';
+                ctx.fillText(`節奏型圖卡 ${imgId}.jpg`, xPos + 40, 60);
             }
             
             if (i === currentActiveImageIndex) {
@@ -331,7 +479,13 @@ function gameLoop() {
             let currentCountdownBeat = Math.floor(relativeTime / BEAT_DURATION);
             if (currentCountdownBeat !== lastCountdownBeatRegistered && currentCountdownBeat < 4) {
                 lastCountdownBeatRegistered = currentCountdownBeat;
-                playHitSound(); 
+                
+                let ctxTime = audioCtx.currentTime;
+                // Perfected arcade frequency pairings: 470Hz low beeps, 940Hz high start tone
+                if (currentCountdownBeat === 0) scheduleBeep(470, ctxTime, 0.12, 1);
+                else if (currentCountdownBeat === 1) scheduleBeep(470, ctxTime, 0.12, 2);
+                else if (currentCountdownBeat === 2) scheduleBeep(470, ctxTime, 0.12, 3);
+                else if (currentCountdownBeat === 3) scheduleBeep(940, ctxTime, 0.50, 4);
             }
         }
 
@@ -339,27 +493,40 @@ function gameLoop() {
             let judgmentLineX = 150;
             ctx.strokeStyle = '#fff';
             ctx.lineWidth = 4;
-            ctx.beginPath(); ctx.arc(judgmentLineX, 320, 35, 0, Math.PI * 2); ctx.stroke();
+            ctx.beginPath(); 
+            ctx.arc(judgmentLineX, 320, 45, 0, Math.PI * 2); 
+            ctx.stroke();
             
-            ctx.fillStyle = 'rgba(255,255,255,0.05)';
-            ctx.fillRect(0, 285, canvas.width, 70);
+            ctx.fillStyle = 'rgba(255,255,255,0.03)';
+            ctx.fillRect(0, 270, canvas.width, 100); 
             
             activeNotes.forEach(note => {
                 let xPos = judgmentLineX + ((note.targetOffset - relativeTime) * 400);
                 
-                if (relativeTime > note.targetOffset + WINDOW_MAX) {
+                if (note.processed) {
                     let judgment = getJudgmentData(note.hitOffset, note.missedEntirely);
-                    ctx.fillStyle = judgment.color;
                     
-                    if (xPos > 0 && xPos < canvas.width) {
-                        ctx.beginPath(); ctx.arc(xPos, 320, 15, 0, Math.PI * 2); ctx.fill();
-                        ctx.font = 'bold 10px Courier New';
-                        ctx.fillText(judgment.text, xPos - 20, 295);
+                    // Display window fine-tuned to exactly 0.15s
+                    let displayOnset = note.hitTimestamp || note.targetOffset + WINDOW_MAX;
+                    if (relativeTime <= displayOnset + 0.15) {
+                        ctx.save();
+                        ctx.fillStyle = judgment.color;
+                        // 1.5x Size amplification (scaled cleanly from bold 12px up to bold 18px)
+                        ctx.font = 'bold 18px Segoe UI';
+                        ctx.textAlign = 'center';
+                        // Renders straight up directly above the stationary target lane ring zone
+                        ctx.fillText(judgment.text, judgmentLineX, 250);
+                        ctx.restore();
+                    }
+                    
+                    if (note.missedEntirely && xPos > 0 && xPos < canvas.width) {
+                        ctx.fillStyle = judgment.color;
+                        ctx.beginPath(); ctx.arc(xPos, 320, 20, 0, Math.PI * 2); ctx.fill();
                     }
                 } else {
                     if (xPos > judgmentLineX - 40 && xPos < canvas.width + 40) {
                         ctx.fillStyle = '#ffffff'; 
-                        ctx.beginPath(); ctx.arc(xPos, 320, 20, 0, Math.PI * 2); ctx.fill();
+                        ctx.beginPath(); ctx.arc(xPos, 320, 30, 0, Math.PI * 2); ctx.fill();
                     }
                 }
             });
@@ -367,47 +534,80 @@ function gameLoop() {
         } else if (currentMode === 'phigros') {
             let colWidth = canvas.width / 4;
             for(let i=0; i<4; i++) {
-                ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+                ctx.strokeStyle = 'rgba(255,255,255,0.04)';
                 ctx.strokeRect(i * colWidth, 110, colWidth, canvas.height - 110);
-                ctx.fillStyle = 'rgba(0, 184, 148, 0.15)';
-                ctx.fillRect(i * colWidth + 10, canvas.height - 60, colWidth - 20, 30);
+                ctx.fillStyle = 'rgba(0, 184, 148, 0.1)';
+                ctx.fillRect(i * colWidth + 4, canvas.height - 60, colWidth - 8, 25);
             }
             
             activeNotes.forEach(note => {
-                let colCenterX = (note.column * colWidth) + (colWidth / 2);
+                let colLeftX = note.column * colWidth;
                 let yPos = (canvas.height - 45) - ((note.targetOffset - relativeTime) * 450);
                 
-                // Fixed: Explicit rendering isolation logic based on processing state
                 if (note.processed) {
                     let judgment = getJudgmentData(note.hitOffset, note.missedEntirely);
                     
-                    // Keep flashing judgment visual indicators on line for 350ms after passing
-                    if (relativeTime <= note.targetOffset + WINDOW_MAX + 0.350) {
+                    // Display window fine-tuned to exactly 0.15s
+                    let displayOnset = note.hitTimestamp || note.targetOffset + WINDOW_MAX;
+                    if (relativeTime <= displayOnset + 0.15) {
+                        ctx.save();
                         ctx.fillStyle = judgment.color;
-                        ctx.beginPath(); ctx.arc(colCenterX, canvas.height - 45, 12, 0, Math.PI * 2); ctx.fill();
-                        ctx.font = 'bold 12px Courier New';
+                        ctx.fillRect(colLeftX + 6, canvas.height - 55, colWidth - 12, 15);
+                        // 1.5x Size amplification (scaled cleanly from bold 14px up to bold 21px)
+                        ctx.font = 'bold 21px Segoe UI';
                         ctx.textAlign = 'center';
-                        ctx.fillText(judgment.text, colCenterX, canvas.height - 70);
-                        ctx.textAlign = 'left'; // Reset standard configuration alignment
+                        ctx.fillText(judgment.text, colLeftX + (colWidth / 2), canvas.height - 75);
+                        ctx.restore();
                     }
                 } else {
                     if (yPos > 110 && yPos < canvas.height) {
                         ctx.fillStyle = '#00cec9';
-                        ctx.beginPath(); ctx.arc(colCenterX, yPos, 16, 0, Math.PI * 2); ctx.fill();
+                        ctx.fillRect(colLeftX + 6, yPos - 12, colWidth - 12, 24);
                     }
                 }
             });
         }
 
+        // --- Mario Kart Traffic Starter Light Display Module ---
         if (relativeTime < countdownEndTime) {
-            let exactRemainingBeats = 4 - (relativeTime / BEAT_DURATION);
-            let barsToDraw = Math.ceil(exactRemainingBeats);
-            
-            ctx.fillStyle = '#eccc68';
-            for (let i = 0; i < barsToDraw; i++) {
-                ctx.fillRect(260 + (i * 70), 200, 50, 20);
+            let activeLightIndex = Math.floor(relativeTime / BEAT_DURATION); 
+            let lightY = 220;
+            let lightRadius = 25;
+            let gap = 70;
+            let startX = canvas.width / 2 - gap;
+
+            ctx.save();
+            for (let i = 0; i < 3; i++) {
+                let currentLightX = startX + (i * gap);
+                
+                ctx.beginPath();
+                ctx.arc(currentLightX, lightY, lightRadius, 0, Math.PI * 2);
+                ctx.fillStyle = '#33333d';
+                ctx.fill();
+                ctx.strokeStyle = '#55555f';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+
+                if (activeLightIndex < 3) {
+                    if (i <= activeLightIndex) {
+                        ctx.beginPath();
+                        ctx.arc(currentLightX, lightY, lightRadius - 2, 0, Math.PI * 2);
+                        ctx.fillStyle = '#ff4757'; 
+                        ctx.shadowColor = '#ff4757';
+                        ctx.shadowBlur = 20;
+                        ctx.fill();
+                    }
+                } else {
+                    ctx.beginPath();
+                    ctx.arc(currentLightX, lightY, lightRadius - 2, 0, Math.PI * 2);
+                    ctx.fillStyle = '#2ed573'; 
+                    ctx.shadowColor = '#2ed573';
+                    ctx.shadowBlur = 20;
+                    ctx.fill();
+                }
             }
-            uiOverlay.innerHTML = `Countdown Phase Active... Bars Remaining: ${barsToDraw}`;
+            ctx.restore();
+            uiOverlay.innerHTML = ''; 
         } else {
             let playedCount = 0;
             activeNotes.forEach(note => {
@@ -419,7 +619,8 @@ function gameLoop() {
                 if (note.processed) playedCount++;
             });
             
-            uiOverlay.innerHTML = `Question ${currentQuestionIndex + 1}/5 | Hits Evaluated: ${playedCount}/${activeNotes.length}<br><span style="color:#00cec9; font-weight:bold;">${liveInputLog}</span>`;
+            // Clean interface: removed beat-by-beat real-time log string metrics down below
+            uiOverlay.innerHTML = `當前關卡題目: ${currentQuestionIndex + 1}/5 | 已評估音符: ${playedCount}/${activeNotes.length}`;
         }
         
         if (relativeTime >= (8 * BEAT_DURATION)) {
@@ -429,53 +630,59 @@ function gameLoop() {
 
     if (gameState === 'QUESTION_SCORE') {
         ctx.fillStyle = '#fff';
-        ctx.font = 'bold 24px Courier New';
-        ctx.fillText(`QUESTION ${currentQuestionIndex + 1} SCORE`, 280, 180);
+        ctx.font = 'bold 26px Segoe UI';
+        ctx.fillText(`第 ${currentQuestionIndex + 1} 題 挑戰完成`, 290, 220);
         
-        let currentAvg = questionScores[currentQuestionIndex] || 0;
-        ctx.font = '36px Courier New';
+        let timestampNow = performance.now();
+        if (rollingScoreDisplay < targetFinalScore) {
+            let elapsed = timestampNow - lastTickTime;
+            if (elapsed > 20) {
+                rollingScoreDisplay += 0.15; 
+                if (rollingScoreDisplay > targetFinalScore) rollingScoreDisplay = targetFinalScore;
+                
+                playScoreTickSound(rollingScoreDisplay, 10.0);
+                lastTickTime = timestampNow;
+            }
+        }
+
+        ctx.font = 'bold 46px Segoe UI';
         ctx.fillStyle = '#eccc68';
-        ctx.fillText(`${currentAvg.toFixed(2)} / 10.00`, 270, 235);
+        ctx.fillText(`${rollingScoreDisplay.toFixed(2)} / 10.00`, 285, 300);
         
-        ctx.font = '14px Courier New';
-        ctx.fillStyle = '#85929E';
-        ctx.fillText("Hit Breakdown for this Question Pattern:", 50, 280);
-        
-        activeNotes.forEach((note, index) => {
-            let isSecondColumn = index >= 8;
-            let colX = isSecondColumn ? 430 : 50;
-            let targetRowIndex = isSecondColumn ? index - 8 : index;
-            let rowY = 310 + (targetRowIndex * 24);
-            
-            let offsetStr = note.missedEntirely ? "MISSED" : `${note.hitOffset >= 0 ? "+" : ""}${note.hitOffset.toFixed(4)}s`;
-            
-            ctx.fillStyle = note.missedEntirely ? '#ff4d4d' : '#fff';
-            ctx.fillText(`N${index + 1} (Col${note.column + 1}): Off:${offsetStr} | Scr:${note.hitScore.toFixed(2)}`, colX, rowY);
-        });
-        
-        uiOverlay.innerHTML = `Review your pattern execution above before proceeding.`;
+        uiOverlay.innerHTML = `請準備迎接下一小節的節奏`; 
     }
 
     if (gameState === 'FINAL_SCOREBOARD') {
         ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 24px Courier New';
-        ctx.fillText('PERFORMANCE SUMMARY', 260, 150);
+        ctx.font = 'bold 28px Segoe UI';
+        ctx.fillText('全關卡總結算成績單', 270, 140);
         
-        ctx.font = '18px Courier New';
-        let grandTotal = 0;
+        ctx.font = '20px Segoe UI';
         for (let i = 0; i < 5; i++) {
             let score = questionScores[i] || 0;
-            grandTotal += score;
-            ctx.fillText(`Question ${i + 1}: ............ ${score.toFixed(1)} / 10.0`, 230, 210 + (i * 35));
+            ctx.fillStyle = '#a4b0be';
+            ctx.fillText(`第 ${i + 1} 題 得分: .................... ${score.toFixed(2)} / 10.0`, 210, 200 + (i * 35));
         }
         
-        ctx.strokeStyle = '#555';
-        ctx.beginPath(); ctx.moveTo(220, 390); ctx.lineTo(580, 390); ctx.stroke();
+        ctx.strokeStyle = '#2f3542';
+        ctx.beginPath(); ctx.moveTo(200, 385); ctx.lineTo(600, 385); ctx.stroke();
         
-        ctx.font = 'bold 22px Courier New';
+        let timestampNow = performance.now();
+        if (rollingScoreDisplay < targetFinalScore) {
+            let elapsed = timestampNow - lastTickTime;
+            if (elapsed > 20) {
+                rollingScoreDisplay += 0.65; 
+                if (rollingScoreDisplay > targetFinalScore) rollingScoreDisplay = targetFinalScore;
+                
+                playScoreTickSound(rollingScoreDisplay, 50.0);
+                lastTickTime = timestampNow;
+            }
+        }
+        
+        ctx.font = 'bold 28px Segoe UI';
         ctx.fillStyle = '#00cec9';
-        ctx.fillText(`GRAND TOTAL: ...... ${grandTotal.toFixed(2)} / 50.00`, 230, 420);
-        uiOverlay.innerHTML = "Session Complete!";
+        ctx.fillText(`總體累積得分: ...... ${rollingScoreDisplay.toFixed(2)} / 50.00`, 210, 430);
+        uiOverlay.innerHTML = "本次練習測試已全部結束！";
     }
 
     requestAnimationFrame(gameLoop);
