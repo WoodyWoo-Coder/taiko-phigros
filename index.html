@@ -98,7 +98,7 @@
             <h3>玩法教學 (Tutorial)</h3>
             • <b>太鼓模式：</b>音符抵達左側判定圈時，按下 <code>空白鍵 (Space)</code> 進行敲擊。<br>
             • <b>音遊模式：</b>矩形條由上往下掉落，抵達底部判定線時，按對應軌道鍵 <code>C</code> <code>V</code> <code>B</code> <code>N</code> 進行敲擊。<br>
-            • <b>判定精準度：</b>越接近完美時間點分數越高，分為 <span style="color:#2ecc71">PERFECT</span>、<span style="color:#f1c40f">GOOD</span>、<span style="color:#e67e22">BAD</span>、<span style="color:#ff4d4d">MISS</span>。
+            • <b>判定精準度：</b>越接近完美時間點分數越高，分為 <span style="color:#ffea00">完美</span>、<span style="color:#ffea00">良</span>、<span style="color:#e67e22">差</span>、<span>MISS</span>。
         </div>
 
         <div class="mode-container">
@@ -140,7 +140,6 @@ const BEAT_PATTERNS = {
 // --- AUDIO SYNTHESIS SYSTEM ---
 let audioCtx = null;
 
-// Cold-boot audio setup to eliminate first beat lag entirely
 function warmupAudioContext() {
     if (!audioCtx) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -154,17 +153,21 @@ function playHitSound() {
     warmupAudioContext();
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
+    
     osc.connect(gain);
     gain.connect(audioCtx.destination);
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(440, audioCtx.currentTime); 
-    gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.20); 
+    
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(45, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 0.18);
+    
+    gain.gain.setValueAtTime(0.60, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.22); 
+    
     osc.start();
-    osc.stop(audioCtx.currentTime + 0.20);
+    osc.stop(audioCtx.currentTime + 0.22);
 }
 
-// Re-tuned Pure 8-bit Mario Kart Starting Sound Engine
 function scheduleBeep(frequency, startTime, duration, step) {
     warmupAudioContext();
     const osc = audioCtx.createOscillator();
@@ -176,7 +179,6 @@ function scheduleBeep(frequency, startTime, duration, step) {
     gainNode.gain.setValueAtTime(0.2, startTime); 
     
     if (step === 4) {
-        // High sprint finish held crisp for 0.5s total duration
         gainNode.gain.setValueAtTime(0.2, startTime + 0.3);
         gainNode.gain.linearRampToValueAtTime(0.0, startTime + duration);
     } else {
@@ -222,6 +224,7 @@ let questionScores = [];
 let activeNotes = [];
 let timelineStartTime = 0; 
 let lastCountdownBeatRegistered = -1;
+let currentCombo = 0; 
 
 // Scoreboard Machine Variables
 let rollingScoreDisplay = 0.0;
@@ -230,8 +233,6 @@ let lastTickTime = 0;
 
 function selectMode(mode) {
     currentMode = mode;
-    
-    // Warm up pipeline on initial input interaction to defeat audio lag
     warmupAudioContext();
     
     if (mode === 'taiko') {
@@ -239,7 +240,6 @@ function selectMode(mode) {
         btnPhigros.classList.remove('selected');
     } else {
         btnPhigros.classList.add('selected');
-        btnTaiko.classList.add('selected');
         btnTaiko.classList.remove('selected');
     }
     
@@ -254,20 +254,29 @@ function startGame() {
     warmupAudioContext();
     menu.style.display = 'none';
     canvas.style.display = 'block';
+    currentCombo = 0; 
     generateSession();
     buildTimelineForQuestion();
     requestAnimationFrame(gameLoop);
+}
+
+function shuffleArray(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
 }
 
 function generateSession() {
     questions = [];
     questionScores = [];
     currentQuestionIndex = 0;
+    
     for(let i = 0; i < 5; i++) {
-        let patternCombination = [];
-        for(let j = 0; j < 4; j++) {
-            patternCombination.push(Math.floor(Math.random() * 5) + 1);
-        }
+        let structuralPool = [1, 2, 3, 4, 5];
+        shuffleArray(structuralPool);
+        let patternCombination = [structuralPool[0], structuralPool[1], structuralPool[2], structuralPool[3]];
         questions.push(patternCombination);
     }
 }
@@ -280,19 +289,19 @@ function calculateAccuracyScore(offset) {
 }
 
 function getJudgmentData(offset, isMissedEntirely) {
-    if (isMissedEntirely) return { color: '#ff4d4d', text: 'MISS' }; 
+    // Uniform, thick arcade palette: #ffea00 gold theme for successful tracking hits
+    if (isMissedEntirely) return { color: '#ff4d4d', text: '' }; 
     let absOffset = Math.abs(offset);
-    if (absOffset <= 0.030) return { color: '#2ecc71', text: 'PERFECT' };   
-    if (absOffset <= 0.060) return { color: '#f1c40f', text: 'GOOD' };      
-    if (absOffset <= 0.120) return { color: '#e67e22', text: 'BAD' };       
-    return { color: '#ff4d4d', text: 'MISS' };                              
+    if (absOffset <= 0.030) return { color: '#ffea00', text: '完美' };   
+    if (absOffset <= 0.060) return { color: '#ffea00', text: '良' };      
+    if (absOffset <= 0.120) return { color: '#e67e22', text: '差' };       
+    return { color: '#ff4d4d', text: '' };                              
 }
 
 function buildTimelineForQuestion() {
     gameState = 'TIMELINE_RUNNING';
     actionBtnContainer.innerHTML = '';
     
-    // Ensure accurate syncing across frame execution bounds
     warmupAudioContext();
     timelineStartTime = performance.now() / 1000;
     lastCountdownBeatRegistered = -1;
@@ -327,6 +336,8 @@ function buildTimelineForQuestion() {
 
 function endQuestion() {
     gameState = 'QUESTION_SCORE';
+    currentCombo = 0; // Clear combo count completely upon completing each individual question sequence
+    
     let totalNotes = activeNotes.length;
     let accumulated = 0;
     activeNotes.forEach(note => { accumulated += note.hitScore; });
@@ -382,6 +393,13 @@ function handleHit(forcedColumn = null) {
                 note.hitScore = calculateAccuracyScore(timeDifference);
                 note.processed = true; 
                 note.hitTimestamp = relativeTime;
+                
+                let judgment = getJudgmentData(timeDifference, false);
+                if (judgment.text === '完美' || judgment.text === '良') {
+                    currentCombo++;
+                } else {
+                    currentCombo = 0; 
+                }
                 break; 
             }
         }
@@ -408,21 +426,11 @@ canvas.addEventListener('touchstart', (e) => {
     if (gameState !== 'TIMELINE_RUNNING') return;
     e.preventDefault(); 
     
-    let rect = canvas.getBoundingClientRect();
-    
     if (currentMode === 'taiko') {
-        for (let i = 0; i < e.changedTouches.length; i++) {
-            let touch = e.changedTouches[i];
-            let touchX = ((touch.clientX - rect.left) / rect.width) * canvas.width;
-            let touchY = ((touch.clientY - rect.top) / rect.height) * canvas.height;
-            
-            let distance = Math.sqrt(Math.pow(touchX - 150, 2) + Math.pow(touchY - 320, 2));
-            if (distance <= 65) {
-                handleHit(null);
-            }
-        }
+        handleHit(null);
     } 
     else if (currentMode === 'phigros') {
+        let rect = canvas.getBoundingClientRect();
         for (let i = 0; i < e.changedTouches.length; i++) {
             let touch = e.changedTouches[i];
             let canvasRelativeX = touch.clientX - rect.left;
@@ -481,7 +489,6 @@ function gameLoop() {
                 lastCountdownBeatRegistered = currentCountdownBeat;
                 
                 let ctxTime = audioCtx.currentTime;
-                // Perfected arcade frequency pairings: 470Hz low beeps, 940Hz high start tone
                 if (currentCountdownBeat === 0) scheduleBeep(470, ctxTime, 0.12, 1);
                 else if (currentCountdownBeat === 1) scheduleBeep(470, ctxTime, 0.12, 2);
                 else if (currentCountdownBeat === 2) scheduleBeep(470, ctxTime, 0.12, 3);
@@ -490,7 +497,9 @@ function gameLoop() {
         }
 
         if (currentMode === 'taiko') {
-            let judgmentLineX = 150;
+            // Big stationary judgment lane ring pushed right to exactly X: 220
+            let judgmentLineX = 220;
+            
             ctx.strokeStyle = '#fff';
             ctx.lineWidth = 4;
             ctx.beginPath(); 
@@ -500,27 +509,57 @@ function gameLoop() {
             ctx.fillStyle = 'rgba(255,255,255,0.03)';
             ctx.fillRect(0, 270, canvas.width, 100); 
             
+            // --- Left-Side Combo Counter Render Module ---
+            if (currentCombo >= 2) {
+                ctx.save();
+                ctx.textAlign = 'center';
+                
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+                ctx.shadowBlur = 4;
+                ctx.shadowOffsetX = 2;
+                ctx.shadowOffsetY = 2;
+                
+                // Positioned comfortably to the left of the new circle layout coordinate line
+                ctx.fillStyle = '#ffb8b8';
+                ctx.font = 'bold 16px Impact, Arial Black, sans-serif';
+                ctx.fillText('COMBO', 110, 308);
+                
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 38px Impact, Arial Black, sans-serif'; 
+                ctx.fillText(currentCombo, 110, 345);
+                ctx.restore();
+            }
+            
             activeNotes.forEach(note => {
                 let xPos = judgmentLineX + ((note.targetOffset - relativeTime) * 400);
                 
                 if (note.processed) {
                     let judgment = getJudgmentData(note.hitOffset, note.missedEntirely);
                     
-                    // Display window fine-tuned to exactly 0.15s
                     let displayOnset = note.hitTimestamp || note.targetOffset + WINDOW_MAX;
                     if (relativeTime <= displayOnset + 0.15) {
-                        ctx.save();
-                        ctx.fillStyle = judgment.color;
-                        // 1.5x Size amplification (scaled cleanly from bold 12px up to bold 18px)
-                        ctx.font = 'bold 18px Segoe UI';
-                        ctx.textAlign = 'center';
-                        // Renders straight up directly above the stationary target lane ring zone
-                        ctx.fillText(judgment.text, judgmentLineX, 250);
-                        ctx.restore();
+                        if (judgment.text !== '') {
+                            ctx.save();
+                            
+                            // Highly emphasized thick arcade text styling parameters
+                            ctx.font = '900 36px "Arial Black", "Impact", "Microsoft JhengHei", sans-serif';
+                            ctx.textAlign = 'center';
+                            
+                            // Crisp thick structural outline mask
+                            ctx.strokeStyle = '#000000';
+                            ctx.lineWidth = 6;
+                            ctx.strokeText(judgment.text, judgmentLineX, 240);
+                            
+                            // High-vibrancy colored body overlay fill
+                            ctx.fillStyle = judgment.color;
+                            ctx.fillText(judgment.text, judgmentLineX, 240);
+                            
+                            ctx.restore();
+                        }
                     }
                     
                     if (note.missedEntirely && xPos > 0 && xPos < canvas.width) {
-                        ctx.fillStyle = judgment.color;
+                        ctx.fillStyle = 'rgba(255, 77, 77, 0.5)';
                         ctx.beginPath(); ctx.arc(xPos, 320, 20, 0, Math.PI * 2); ctx.fill();
                     }
                 } else {
@@ -547,17 +586,17 @@ function gameLoop() {
                 if (note.processed) {
                     let judgment = getJudgmentData(note.hitOffset, note.missedEntirely);
                     
-                    // Display window fine-tuned to exactly 0.15s
                     let displayOnset = note.hitTimestamp || note.targetOffset + WINDOW_MAX;
                     if (relativeTime <= displayOnset + 0.15) {
-                        ctx.save();
-                        ctx.fillStyle = judgment.color;
-                        ctx.fillRect(colLeftX + 6, canvas.height - 55, colWidth - 12, 15);
-                        // 1.5x Size amplification (scaled cleanly from bold 14px up to bold 21px)
-                        ctx.font = 'bold 21px Segoe UI';
-                        ctx.textAlign = 'center';
-                        ctx.fillText(judgment.text, colLeftX + (colWidth / 2), canvas.height - 75);
-                        ctx.restore();
+                        if (judgment.text !== '') {
+                            ctx.save();
+                            ctx.fillStyle = judgment.color;
+                            ctx.fillRect(colLeftX + 6, canvas.height - 55, colWidth - 12, 15);
+                            ctx.font = 'bold 21px Segoe UI';
+                            ctx.textAlign = 'center';
+                            ctx.fillText(judgment.text, colLeftX + (colWidth / 2), canvas.height - 75);
+                            ctx.restore();
+                        }
                     }
                 } else {
                     if (yPos > 110 && yPos < canvas.height) {
@@ -615,11 +654,11 @@ function gameLoop() {
                     note.hitScore = 0.0;
                     note.missedEntirely = true;
                     note.processed = true; 
+                    currentCombo = 0; 
                 }
                 if (note.processed) playedCount++;
             });
             
-            // Clean interface: removed beat-by-beat real-time log string metrics down below
             uiOverlay.innerHTML = `當前關卡題目: ${currentQuestionIndex + 1}/5 | 已評估音符: ${playedCount}/${activeNotes.length}`;
         }
         
