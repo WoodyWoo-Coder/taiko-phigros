@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>擊擊復擊擊 - Percussion Practice Suite</title>
     <style>
+        :root {
+            --taiko-mobile-height: 60vh; /* 80% to 20% means height is exactly 60% of viewport */
+        }
+        html, body {
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch;
+            height: 100%;
+        }
         body {
             background-color: #0c0c0e;
             color: #ffffff;
@@ -16,11 +24,9 @@
             min-height: 100vh;
             margin: 0;
             overflow-x: hidden;
-            overflow-y: auto; 
             user-select: none;
             padding: 20px 10px;
             box-sizing: border-box;
-            -webkit-overflow-scrolling: touch;
         }
         #game-container { 
             text-align: center; 
@@ -218,19 +224,24 @@
         #orientation-guard p { font-size: 15px; color: #a4b0be; margin: 0; }
 
         @media screen and (max-width: 1024px) {
-            html, body {
-                overflow-y: auto !important;
-                -webkit-overflow-scrolling: touch;
+            /* TAIKO PHONE MODE ONLY - Adjust wrapper rectangle to span 80% to 20% vertically */
+            body.taiko-active-mode {
+                padding: 0;
+                min-height: 140vh; /* Expand scrolling canvas track height */
             }
-            body {
-                padding: 10px 5px;
-            }
-            /* Shifts entire rectangle box down by 5% on phone screens */
-            #canvas-wrapper {
-                margin-top: 5vh !important; 
+            body.taiko-active-mode #canvas-wrapper {
+                position: fixed !important;
+                top: 50vh !important;
+                left: 50vw !important;
+                transform: translate(-50%, -50%) !important;
+                height: var(--taiko-mobile-height) !important;
+                width: calc(var(--taiko-mobile-height) * (800 / 520)) !important;
+                max-width: 95vw !important;
+                margin: 0 !important;
+                box-sizing: border-box;
             }
             .wrapper-taiko {
-                aspect-ratio: 800 / 520 !important;
+                aspect-ratio: auto !important; 
             }
             .wrapper-phigros { 
                 aspect-ratio: 450 / 680 !important; 
@@ -536,6 +547,7 @@ function selectMode(mode) {
     currentMode = mode;
     warmupAudioContext();
     if (mode === 'taiko') {
+        document.body.classList.add('taiko-active-mode');
         btnTaiko.classList.add('selected');
         btnPhigros.classList.remove('selected');
         canvasWrapper.className = '';
@@ -543,6 +555,7 @@ function selectMode(mode) {
         canvas.width = 800;
         canvas.height = 520;
     } else {
+        document.body.classList.remove('taiko-active-mode');
         btnPhigros.classList.add('selected');
         btnTaiko.classList.remove('selected');
         canvasWrapper.className = '';
@@ -766,13 +779,16 @@ window.addEventListener('keydown', (e) => {
     }
 });
 
+// SCROLL FIX: Allow default touch events outside direct interactive regions to preserve scrolling
 canvas.addEventListener('touchstart', (e) => {
     if (gameState !== 'TIMELINE_RUNNING') return;
-    e.preventDefault(); 
+    
     if (currentMode === 'taiko') {
+        // Taiko mode tap registered globally
         handleHit(null);
     } 
     else if (currentMode === 'phigros') {
+        e.preventDefault(); 
         let rect = canvas.getBoundingClientRect();
         for (let i = 0; i < e.changedTouches.length; i++) {
             let touch = e.changedTouches[i];
@@ -782,7 +798,7 @@ canvas.addEventListener('touchstart', (e) => {
             handleHit(calculatedColumn);
         }
     }
-}, {passive: false});
+}, {passive: true});
 
 function getOptimizedScoreScreenTimeline() {
     let generatedOffsets = [];
@@ -867,8 +883,6 @@ function gameLoop() {
                     ctx.strokeRect(xPos + 2, cardPanelY + 2, imgWidth - 4, cardPanelHeight - 4);
                 }
             }
-
-            // REMOVED: Round counter "1 / 5" block hidden from gameplay screen per request
         }
 
         if (relativeTime < countdownEndTime) {
@@ -1062,7 +1076,6 @@ function gameLoop() {
             ctx.save();
             let upperBaselineY = getMappedY(80); 
 
-            // Restored inside Score view context
             ctx.save();
             ctx.fillStyle = '#a4b0be';
             ctx.font = 'bold 24px Arial, sans-serif';
