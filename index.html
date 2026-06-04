@@ -19,19 +19,6 @@
             margin: 0;
             padding: 20px 10px;
             box-sizing: border-box;
-        }
-        
-        /* Rigidly locked strictly during runtime play loop execution */
-        body.scroll-locked {
-            overflow: hidden !important;
-            touch-action: none;
-            position: fixed;
-            width: 100%;
-            height: 100%;
-        }
-        
-        /* Fully relaxed view state allowing browser native scrolling mechanisms */
-        body.scroll-allowed {
             overflow-y: auto !important;
             touch-action: auto;
             -webkit-overflow-scrolling: touch;
@@ -203,33 +190,14 @@
         #orientation-guard p { font-size: 15px; color: #a4b0be; margin: 0; }
 
         @media screen and (max-width: 1024px) {
-            /* Scroll locked layout for phone taiko play loop */
-            body.taiko-active-mode.scroll-locked {
-                padding: 10px 5px;
-            }
-            body.taiko-active-mode.scroll-locked #game-container {
-                width: 100%;
-                max-width: 96vw;
-            }
-            body.taiko-active-mode.scroll-locked #canvas-wrapper {
-                width: 96vw !important;
-                max-width: 96vw !important;
-                aspect-ratio: 800 / 520 !important;
-                margin: 0 auto !important;
-                position: relative !important;
-                box-sizing: border-box;
-            }
-            
-            /* RELAXED: When evaluation screen hit, cleanly step back and let browser standard scroll flow execute */
-            body.taiko-active-mode.scroll-allowed {
+            body.taiko-active-mode {
                 padding: 20px 10px !important;
-                overflow-y: auto !important;
             }
-            body.taiko-active-mode.scroll-allowed #game-container {
+            #game-container {
                 max-width: 100% !important;
                 width: auto !important;
             }
-            body.taiko-active-mode.scroll-allowed #canvas-wrapper {
+            #canvas-wrapper {
                 width: 94vw !important;
                 max-width: 800px !important;
                 aspect-ratio: 800 / 520 !important;
@@ -253,7 +221,7 @@
         }
     </style>
 </head>
-<body class="scroll-allowed">
+<body>
 
 <div id="orientation-guard">
     <svg id="guard-svg" viewBox="0 0 24 24">
@@ -267,7 +235,7 @@
     <div id="menu">
         <h1>擊擊復擊擊</h1>
         <div class="credits">製作者: 郭覲德 林映澄</div>
-        <div class="version-tag">Version 1.02</div>
+        <div class="version-tag">Version 1.03</div>
         
         <div id="tutorial-panel">
             <h3>玩法教學 (Tutorial)</h3>
@@ -634,12 +602,6 @@ function buildTimelineForQuestion() {
     validHitsCount = 0;
     let noteIdCounter = 0;
     
-    // Lock scrolling viewport boundaries instantly during gameplay execution loops
-    document.body.className = "scroll-locked";
-    if (currentMode === 'taiko') {
-        document.body.classList.add('taiko-active-mode');
-    }
-    // Anchor to absolute top viewport line for EVERY new load sequence
     window.scrollTo({ top: 0, behavior: 'instant' });
     
     if (currentMode === 'taiko') {
@@ -694,12 +656,6 @@ function endQuestion() {
     scoreFinishedRisingGlobal = false;
     resultViewStartTimestamp = performance.now() / 1000;
     
-    // RELEASE scrolling immediately on evaluation view triggers
-    document.body.className = "scroll-allowed";
-    if (currentMode === 'taiko') {
-        document.body.classList.add('taiko-active-mode');
-    }
-    // Forces structural window scrolling to reset instantly at top line layout anchors
     window.scrollTo({ top: 0, behavior: 'instant' });
     
     let totalNotes = activeNotes.length;
@@ -737,17 +693,12 @@ function showGrandScoreboard() {
     currentActiveCommentary = getCommentaryByPoints(targetFinalScore, true);
     actionBtnContainer.innerHTML = ''; 
     
-    document.body.className = "scroll-allowed";
-    if (currentMode === 'taiko') {
-        document.body.classList.add('taiko-active-mode');
-    }
     window.scrollTo({ top: 0, behavior: 'instant' });
 }
 
 function resetToHomeMenu() {
     gameState = 'START';
     currentMode = '';
-    document.body.className = "scroll-allowed";
     btnTaiko.classList.remove('selected');
     btnPhigros.classList.remove('selected');
     btnStart.disabled = true;
@@ -795,6 +746,15 @@ function handleHit(forcedColumn = null) {
         }
     }
 }
+
+// Global window event listeners instead of body blocking to guarantee smooth scroll detection
+window.addEventListener('wheel', (e) => {}, { passive: true });
+window.addEventListener('touchmove', (e) => {
+    if (gameState === 'QUESTION_SCORE' || gameState === 'FINAL_SCOREBOARD') {
+        // Explicitly bubbling up to trigger document scrolling naturally
+        return true;
+    }
+}, { passive: true });
 
 function isPointInRect(px, py, rect) {
     return px >= rect.x && px <= rect.x + rect.w && py >= rect.y && py <= rect.y + rect.h;
@@ -849,10 +809,10 @@ window.addEventListener('touchstart', (e) => {
 
     if (gameState === 'QUESTION_SCORE' || gameState === 'FINAL_SCOREBOARD') {
         if (currentMode === 'taiko' && insideCanvas) {
-            e.preventDefault();
             let touchX = ((touch.clientX - rect.left) / rect.width) * canvas.width;
             let touchY = ((touch.clientY - rect.top) / rect.height) * canvas.height;
             if (isPointInRect(touchX, touchY, canvasNextBtnRect)) {
+                e.preventDefault();
                 executeCanvasButtonClickLogic();
             }
         }
@@ -902,20 +862,16 @@ const scoreBackgroundTimelinePool = getOptimizedScoreScreenTimeline();
 function getMappedY(percentageVal) {
     let mobile = isMobileDevice();
     
-    // Taiko mode permanent layout routing positions
     if (currentMode === 'taiko') {
         if (gameState === 'TIMELINE_RUNNING') {
             if (percentageVal === 80) {
-                // Image Strip Box Coordinates: Desktop is centered at 90. Phone version sits tight flush along top edge (y=60)
                 return mobile ? 60 : 90;
             }  
             if (percentageVal === 20) {
-                // Hit track line: Desktop maps at y=410. Phone versions shifts exactly 30% lower than the top image strip (60 + 156) = 216
                 return mobile ? 216 : 410; 
             } 
         } 
         else if (gameState === 'QUESTION_SCORE' || gameState === 'FINAL_SCOREBOARD') {
-            // Anchor coordinates for execution evaluations stay identical across standard modes
             if (percentageVal === 80) return 104; 
             if (percentageVal === 65) return 182; 
             if (percentageVal === 30) return 260; 
@@ -968,6 +924,7 @@ function gameLoop() {
     let timeNow = performance.now() / 1000;
     let relativeTime = timeNow - timelineStartTime;
     let countdownEndTime = 4 * BEAT_DURATION;
+    let mobile = isMobileDevice();
 
     // 1. Gameplay Active Interface
     if (gameState === 'TIMELINE_RUNNING') {
@@ -1055,13 +1012,22 @@ function gameLoop() {
                     if (relativeTime <= displayOnset + 0.15) {
                         if (judgment.text !== '') {
                             ctx.save();
-                            ctx.font = `900 36px "Arial Black", "Microsoft JhengHei"`;
                             ctx.textAlign = 'center';
                             ctx.strokeStyle = '#000000';
                             ctx.lineWidth = 6;
-                            ctx.strokeText(judgment.text, judgmentLineX, trackBaseY - 85);
-                            ctx.fillStyle = '#ffffff'; 
-                            ctx.fillText(judgment.text, judgmentLineX, trackBaseY - 85);
+                            
+                            // 80% sizing and 4% downward shift exclusively for phone taiko viewports
+                            if (mobile) {
+                                ctx.font = `900 29px "Arial Black", "Microsoft JhengHei"`;
+                                ctx.strokeText(judgment.text, judgmentLineX, trackBaseY - 64);
+                                ctx.fillStyle = '#ffffff'; 
+                                ctx.fillText(judgment.text, judgmentLineX, trackBaseY - 64);
+                            } else {
+                                ctx.font = `900 36px "Arial Black", "Microsoft JhengHei"`;
+                                ctx.strokeText(judgment.text, judgmentLineX, trackBaseY - 85);
+                                ctx.fillStyle = '#ffffff'; 
+                                ctx.fillText(judgment.text, judgmentLineX, trackBaseY - 85);
+                            }
                             ctx.restore();
                         }
                     }
