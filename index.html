@@ -6,7 +6,7 @@
     <title>擊擊復擊擊 - Percussion Practice Suite</title>
     <style>
         :root {
-            --taiko-mobile-height: 60vh; /* 80% to 20% means height is exactly 60% of viewport */
+            --taiko-mobile-height: 75vh; /* Comfortably fills the viewport vertically while keeping the 50% line exactly centered */
         }
         html, body {
             overflow-y: auto !important;
@@ -224,10 +224,10 @@
         #orientation-guard p { font-size: 15px; color: #a4b0be; margin: 0; }
 
         @media screen and (max-width: 1024px) {
-            /* TAIKO PHONE MODE ONLY - Adjust wrapper rectangle to span 80% to 20% vertically */
+            /* TAIKO PHONE MODE ONLY */
             body.taiko-active-mode {
                 padding: 0;
-                min-height: 140vh; /* Expand scrolling canvas track height */
+                min-height: 100.5vh; /* Small bounce overhead to allow native scroll engines to engage */
             }
             body.taiko-active-mode #canvas-wrapper {
                 position: fixed !important;
@@ -236,7 +236,7 @@
                 transform: translate(-50%, -50%) !important;
                 height: var(--taiko-mobile-height) !important;
                 width: calc(var(--taiko-mobile-height) * (800 / 520)) !important;
-                max-width: 95vw !important;
+                max-width: 92vw !important; /* Expands bounds side-to-side to fix image_3fc006.png squish */
                 margin: 0 !important;
                 box-sizing: border-box;
             }
@@ -246,9 +246,13 @@
             .wrapper-phigros { 
                 aspect-ratio: 450 / 680 !important; 
             }
-            .taiko-next-btn-placement {
-                bottom: 130px !important;
-                right: 30px !important;
+            
+            /* Pin the next button firmly relative to the active mobile canvas footprint */
+            body.taiko-active-mode .taiko-next-btn-placement {
+                position: fixed !important;
+                bottom: 6vh !important; 
+                right: 6vw !important;
+                z-index: 9999 !important;
             }
             .phigros-mobile-btn {
                 margin-top: -5px !important;
@@ -731,7 +735,40 @@ function showGrandScoreboard() {
     targetFinalScore = questionScores.reduce((a, b) => a + b, 0);
     lastTickTime = performance.now();
     currentActiveCommentary = getCommentaryByPoints(targetFinalScore, true);
-    actionBtnContainer.innerHTML = `<button class="btn-action phigros-mobile-btn" onclick="location.reload()">再玩一次</button>`;
+    
+    if (currentMode === 'taiko') {
+        actionBtnContainer.innerHTML = `
+            <button class="modern-next-btn taiko-next-btn-placement" onclick="resetToHomeMenu()">
+                <span>回到主選單</span>
+            </button>`;
+    } else {
+        actionBtnContainer.innerHTML = `<button class="btn-action phigros-mobile-btn" onclick="resetToHomeMenu()">回到主選單</button>`;
+    }
+}
+
+function resetToHomeMenu() {
+    gameState = 'START';
+    currentMode = '';
+    document.body.classList.remove('taiko-active-mode');
+    btnTaiko.classList.remove('selected');
+    btnPhigros.classList.remove('selected');
+    btnStart.disabled = true;
+    btnStart.style.background = '#2f3542';
+    btnStart.style.color = '#57606f';
+    canvasWrapper.style.display = 'none';
+    actionBtnContainer.innerHTML = '';
+    uiOverlay.innerHTML = '';
+    menu.style.display = 'flex';
+    
+    // Explicitly restore document dimensions to fix horizontal view tracking lockouts
+    document.documentElement.style.overflow = 'auto';
+    document.body.style.overflow = 'auto';
+    window.scrollTo(0,0);
+    
+    if (audioLoaded) {
+        audioStatusDiv.style.color = '#0be881';
+        audioStatusDiv.innerText = '✅ 樂器打擊音效載入完成！請選擇遊戲模式';
+    }
 }
 
 function handleHit(forcedColumn = null) {
@@ -779,12 +816,16 @@ window.addEventListener('keydown', (e) => {
     }
 });
 
-// SCROLL FIX: Allow default touch events outside direct interactive regions to preserve scrolling
-canvas.addEventListener('touchstart', (e) => {
+// Optimized scrolling container bindings targeting peripheral track spaces
+window.addEventListener('touchstart', (e) => {
     if (gameState !== 'TIMELINE_RUNNING') return;
     
     if (currentMode === 'taiko') {
-        // Taiko mode tap registered globally
+        // Allow pure top/bottom boundary sweeps outside canvas height to bypass game hit overrides
+        let touchObj = e.touches[0];
+        if (touchObj.clientY < window.innerHeight * 0.12 || touchObj.clientY > window.innerHeight * 0.88) {
+            return; 
+        }
         handleHit(null);
     } 
     else if (currentMode === 'phigros') {
@@ -821,7 +862,6 @@ function getOptimizedScoreScreenTimeline() {
 
 const scoreBackgroundTimelinePool = getOptimizedScoreScreenTimeline();
 
-// Dynamic vertical positioning coordinator (0 is bottom, 100 is top)
 function getMappedY(percentageVal) {
     if (currentMode === 'taiko') {
         let scale = (isMobileDevice()) ? 0.8 : 1.0;
@@ -854,7 +894,7 @@ function gameLoop() {
         if (currentMode === 'taiko') {
             let patternIDs = questions[currentQuestionIndex];
             let cardPanelHeight = 110 * scale;
-            let cardPanelY = getMappedY(85); // 85% Height Baseline
+            let cardPanelY = getMappedY(85); 
             
             ctx.fillStyle = '#1e1e24';
             ctx.fillRect(0, cardPanelY, canvas.width, cardPanelHeight);
@@ -899,7 +939,7 @@ function gameLoop() {
 
         if (currentMode === 'taiko') {
             let judgmentLineX = 220 * scale;
-            let trackBaseY = getMappedY(10); // 10% Height Baseline
+            let trackBaseY = getMappedY(10); 
             let circleRadius = 45 * scale;
             let barHeight = 100 * scale;
 
