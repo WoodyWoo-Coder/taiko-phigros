@@ -2,6 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>擊擊復擊擊 - Percussion Practice Suite</title>
     <style>
         body {
@@ -21,18 +22,28 @@
         h1 { font-size: 36px; margin-bottom: 5px; color: #00cec9; letter-spacing: 3px; }
         .credits { font-size: 14px; color: #747d8c; margin-bottom: 25px; }
         
-        /* Layout Structure styling */
         .mode-container { display: flex; justify-content: center; gap: 15px; margin-bottom: 20px; }
         
-        canvas {
+        #canvas-wrapper {
+            position: relative;
+            width: 800px;
+            height: 520px;
             border: 4px solid #2f3542;
             background-color: #151518;
             box-shadow: 0 10px 30px rgba(0,0,0,0.7);
             border-radius: 6px;
+            overflow: hidden;
         }
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 2;
+            background: transparent;
+        }
+        
         #ui-overlay { margin-top: 15px; font-size: 18px; min-height: 45px; color: #eccc68; font-weight: 500; }
         
-        /* Button Configurations */
         .btn {
             background: #2f3542;
             color: #a4b0be;
@@ -72,7 +83,36 @@
         }
         .btn-action:hover:not(:disabled) { background: #ff6b81; transform: translateY(-2px); }
         
-        /* Tutorial Panel rules */
+        .modern-next-btn {
+            position: absolute;
+            bottom: 40px;
+            right: 45px;
+            background: #ffffff;
+            color: #0c0c0e;
+            border: none;
+            padding: 14px 36px;
+            font-size: 18px;
+            font-weight: 800;
+            border-radius: 30px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 4px 20px rgba(255,255,255,0.15);
+            z-index: 10;
+            letter-spacing: 1px;
+            transition: transform 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+        }
+        .modern-next-btn:hover:not(:disabled) { 
+            transform: translateY(-2px); 
+            background: #00cec9; 
+            color: #0c0c0e;
+            box-shadow: 0 6px 25px rgba(0, 206, 201, 0.4);
+        }
+        .modern-next-btn:disabled { background: #2f3542; color: #57606f; cursor: not-allowed; opacity: 0.4; box-shadow: none; }
+        .modern-next-btn svg { width: 18px; height: 18px; fill: currentColor; transition: transform 0.2s ease; }
+        .modern-next-btn:hover svg { transform: translateX(3px); }
+
         #tutorial-panel {
             background: #1e1e24;
             border: 2px solid #2f3542;
@@ -85,9 +125,64 @@
         }
         #tutorial-panel h3 { color: #00cec9; margin-top: 0; }
         #tutorial-panel code { background: #0c0c0e; padding: 2px 6px; border-radius: 4px; color: #ff7f50; }
+        
+        #audio-status {
+            font-size: 14px;
+            color: #ffd32a;
+            margin-bottom: 15px;
+            font-weight: bold;
+            min-height: 20px;
+        }
+
+        /* Responsive Landscape Enforcer Guard Overlay */
+        #orientation-guard {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: #0c0c0e;
+            color: #ffffff;
+            z-index: 99999;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            font-family: sans-serif;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        #orientation-guard svg {
+            width: 65px;
+            height: 65px;
+            fill: #00cec9;
+            margin-bottom: 20px;
+            animation: rotateDevice 2s ease-in-out infinite;
+        }
+        @keyframes rotateDevice {
+            0% { transform: rotate(0deg); }
+            50% { transform: rotate(-90deg); }
+            100% { transform: rotate(0deg); }
+        }
+        #orientation-guard h2 { font-size: 24px; margin: 0 0 10px 0; color: #00cec9; }
+        #orientation-guard p { font-size: 15px; color: #a4b0be; margin: 0; }
+
+        @media screen and (max-aspect-ratio: 13/9) and (max-width: 1024px) {
+            #orientation-guard { display: flex; }
+        }
     </style>
 </head>
 <body>
+
+<!-- Landscape Guard Overlay Block -->
+<div id="orientation-guard">
+    <svg viewBox="0 0 24 24">
+        <path d="M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z"/>
+    </svg>
+    <h2>請將手機旋轉至橫螢幕</h2>
+    <p>Please rotate your device to landscape mode to play.</p>
+</div>
 
 <div id="game-container">
     <div id="menu">
@@ -96,10 +191,12 @@
         
         <div id="tutorial-panel">
             <h3>玩法教學 (Tutorial)</h3>
-            • <b>太鼓模式：</b>音符抵達左側判定圈時，按下 <code>空白鍵 (Space)</code> 進行敲擊。<br>
-            • <b>音遊模式：</b>矩形條由上往下掉落，抵達底部判定線時，按對應軌道鍵 <code>C</code> <code>V</code> <code>B</code> <code>N</code> 進行敲擊。<br>
-            • <b>判定精準度：</b>越接近完美時間點分數越高，分為 <span style="color:#ffea00">完美</span>、<span style="color:#ffea00">良</span>、<span style="color:#e67e22">差</span>、<span>MISS</span>。
+            • <b>太鼓模式：</b>音符抵達左側判定圈時，按下 <code>空白鍵 (Space)</code> ；<b>手機操作：</b>點擊螢幕任意處進行敲擊。<br>
+            • <b>音遊模式：</b>矩形條由上往下掉落，抵達底部判定線時，按對應軌道鍵 <code>A</code> <code>S</code> <code>D</code> <code>F</code> ；<b>手機操作：</b>點擊底部對應的四個軌道區域。<br>
+            • <b>判定精準度：</b>越接近完美時間點分數越高，分為 <span style="color:#ffffff">完美</span>、<span style="color:#ffffff">良</span>、<span style="color:#ffffff">差</span>、<span>MISS</span>。
         </div>
+
+        <div id="audio-status">⏳ 初始化音訊與加載樂器中，請點擊任意處開始...</div>
 
         <div class="mode-container">
             <button id="btn-taiko" class="btn" onclick="selectMode('taiko')">太鼓模式</button>
@@ -109,7 +206,9 @@
         <button id="btn-start" class="btn-action" onclick="startGame()" disabled>開始遊戲</button>
     </div>
 
-    <canvas id="gameCanvas" width="800" height="520" style="display:none;"></canvas>
+    <div id="canvas-wrapper" style="display:none;">
+        <canvas id="gameCanvas" width="800" height="520"></canvas>
+    </div>
     <div id="ui-overlay"></div>
     <div id="action-btn-container"></div>
 </div>
@@ -119,9 +218,10 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const uiOverlay = document.getElementById('ui-overlay');
 const menu = document.getElementById('menu');
+const canvasWrapper = document.getElementById('canvas-wrapper');
 const actionBtnContainer = document.getElementById('action-btn-container');
+const audioStatusDiv = document.getElementById('audio-status');
 
-// Mode buttons references
 const btnTaiko = document.getElementById('btn-taiko');
 const btnPhigros = document.getElementById('btn-phigros');
 const btnStart = document.getElementById('btn-start');
@@ -137,8 +237,51 @@ const BEAT_PATTERNS = {
     5: [1, 1, 1, 0], 6: [1, 1, 0, 1], 7: [1, 1, 0, 0], 8: [1, 0, 0, 1]
 };
 
-// --- AUDIO SYNTHESIS SYSTEM ---
+// --- ARCADIC ROAST COMMENTARY TEXT CONFIGURATION POOLS ---
+const INDIVIDUAL_COMMENTS = {
+    tier1: ["海倫凱勒都比你強。", "你試了。我們注意到了。就這樣。", "我阿公都比你行。", "連一根皮毛都沒摸到。"],
+    tier2: ["就這?", "中庸。字典裡最無趣的詞。", "你還好嗎?"],
+    tier3: ["你抓到大概了。真的只有大概。", "還行吧。", "看來你還是有點東西的。只有一點點。"],
+    tier4: ["我們注意到你的表現了。現在開心了嗎?", "勉強能拿來炫耀。", "好吧。我承認你有點實力。"],
+    tier5: ["精確到讓人作嘔。", "挺沒用的能力其實。", "近乎完美都不足以形容你。", "外星人，你被我們逮捕了。"]
+};
+
+const OVERALL_COMMENTS = {
+    tier1: ["海倫凱勒都比你強。", "你試了。我們注意到了。就這樣。", "我阿公都比你行。", "連一根皮毛都沒摸到。"],
+    tier2: ["就這?", "中庸。字典裡最無趣的詞。", "你還好嗎?"],
+    tier3: ["你抓到大概了。真的只有大概。", "還行吧。", "看來你還是有點東西的。只有一點點。"],
+    tier4: ["我們注意到你的表現了. 現在開心了嗎?", "勉強能拿來炫耀。", "好吧。我承認你有點實力。"],
+    tier5: ["精確到讓人作嘔。", "挺沒用的能力其實。", "近乎完美都不足以形容你。", "外星人，你被我們逮捕了。"]
+};
+
+function getRandomComment(score, isOverall = false) {
+    const pool = isOverall ? OVERALL_COMMENTS : INDIVIDUAL_COMMENTS;
+    if (isOverall) {
+        if (score < 35) return pool.tier1[Math.floor(Math.random() * pool.tier1.length)];
+        if (score < 40) return pool.tier2[Math.floor(Math.random() * pool.tier2.length)];
+        if (score < 45) return pool.tier3[Math.floor(Math.random() * pool.tier3.length)];
+        if (score < 48) return pool.tier4[Math.floor(Math.random() * pool.tier4.length)];
+        return pool.tier5[Math.floor(Math.random() * pool.tier5.length)];
+    } else {
+        if (score < 5.0) return pool.tier1[Math.floor(Math.random() * pool.tier1.length)];
+        if (score < 7.0) return pool.tier2[Math.floor(Math.random() * pool.tier2.length)];
+        if (score < 8.5) return pool.tier3[Math.floor(Math.random() * pool.tier3.length)];
+        if (score < 9.5) return pool.tier4[Math.floor(Math.random() * pool.tier4.length)];
+        return pool.tier5[Math.floor(Math.random() * pool.tier5.length)];
+    }
+}
+
+// --- AUDIO SYNTHESIS & FILE LOADING SYSTEM ---
 let audioCtx = null;
+const drumBuffers = { 0: null, 1: null, 2: null, 3: null };
+let audioLoaded = false;
+
+const DRUM_URLS = {
+    0: 'https://raw.githubusercontent.com/scratchfoundation/scratch-audio/develop/sound-files/drums/BassDrum(1b)_22k.wav',
+    1: 'https://raw.githubusercontent.com/scratchfoundation/scratch-audio/develop/sound-files/drums/SnareDrum(1)_22k.wav',
+    2: 'https://raw.githubusercontent.com/scratchfoundation/scratch-audio/develop/sound-files/drums/HiHatClosed(1)_22k.wav',
+    3: 'https://raw.githubusercontent.com/scratchfoundation/scratch-audio/develop/sound-files/drums/HiHatOpen(2)_22k.wav'
+};
 
 function warmupAudioContext() {
     if (!audioCtx) {
@@ -149,23 +292,80 @@ function warmupAudioContext() {
     }
 }
 
-function playHitSound() {
+async function loadDrumSounds() {
+    if (audioLoaded) return;
     warmupAudioContext();
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
+    audioStatusDiv.style.color = '#ffd32a';
+    audioStatusDiv.innerText = '⏳ 正在為您加載音遊專屬打擊樂器組...';
     
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
+    try {
+        const promises = Object.keys(DRUM_URLS).map(async (key) => {
+            const response = await fetch(DRUM_URLS[key]);
+            const arrayBuffer = await response.arrayBuffer();
+            return new Promise((resolve) => {
+                audioCtx.decodeAudioData(arrayBuffer, (buffer) => {
+                    drumBuffers[key] = buffer;
+                    resolve();
+                });
+            });
+        });
+        
+        await Promise.all(promises);
+        audioLoaded = true;
+        audioStatusDiv.style.color = '#0be881';
+        audioStatusDiv.innerText = '✅ 樂器打擊音效載入完成！請選擇遊戲模式';
+        
+        if (currentMode) {
+            btnStart.disabled = false;
+            btnStart.style.background = '#00cec9';
+            btnStart.style.color = '#0c0c0e';
+        }
+    } catch (error) {
+        audioStatusDiv.style.color = '#ff4757';
+        audioStatusDiv.innerText = '⚠️ 音檔加載失敗，將使用系統內建合成器替代';
+        console.error("Audio preloader encountered exception:", error);
+        audioLoaded = true; 
+        if (currentMode) {
+            btnStart.disabled = false;
+        }
+    }
+}
+
+window.addEventListener('click', loadDrumSounds, { once: true });
+window.addEventListener('keydown', loadDrumSounds, { once: true });
+window.addEventListener('DOMContentLoaded', () => {
+    setTimeout(loadDrumSounds, 800);
+});
+
+function playHitSound(column = null) {
+    warmupAudioContext();
+    
+    if (currentMode === 'phigros' && column !== null && drumBuffers[column]) {
+        const source = audioCtx.createBufferSource();
+        source.buffer = drumBuffers[column];
+        if (column === 3) {
+            source.playbackRate.setValueAtTime(0.8, audioCtx.currentTime);
+        }
+        source.connect(audioCtx.destination);
+        source.start(0);
+        return;
+    }
+    
+    const osc = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+    
+    osc.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
     
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(45, audioCtx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 0.18);
+    osc.frequency.setValueAtTime(column === null ? 65 : 70 + column * 40, audioCtx.currentTime); 
+    osc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 0.25);
     
-    gain.gain.setValueAtTime(0.60, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.22); 
+    gainNode.gain.setValueAtTime(0.95, audioCtx.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
     
     osc.start();
-    osc.stop(audioCtx.currentTime + 0.22);
+    osc.stop(audioCtx.currentTime + 0.25);
 }
 
 function scheduleBeep(frequency, startTime, duration, step) {
@@ -175,12 +375,11 @@ function scheduleBeep(frequency, startTime, duration, step) {
 
     osc.type = 'square'; 
     osc.frequency.setValueAtTime(frequency, startTime);
-
     gainNode.gain.setValueAtTime(0.2, startTime); 
     
     if (step === 4) {
-        gainNode.gain.setValueAtTime(0.2, startTime + 0.3);
-        gainNode.gain.linearRampToValueAtTime(0.0, startTime + duration);
+        gainNode.gain.setValueAtTime(0.2, startTime);
+        gainNode.gain.linearRampToValueAtTime(0.0, startTime + 0.75);
     } else {
         gainNode.gain.setValueAtTime(0.2, startTime + duration - 0.01);
         gainNode.gain.linearRampToValueAtTime(0.0, startTime + duration);
@@ -190,7 +389,7 @@ function scheduleBeep(frequency, startTime, duration, step) {
     gainNode.connect(audioCtx.destination);
     
     osc.start(startTime);
-    osc.stop(startTime + duration);
+    osc.stop(startTime + (step === 4 ? 0.75 : duration));
 }
 
 function playScoreTickSound(val, maxVal) {
@@ -210,7 +409,7 @@ function playScoreTickSound(val, maxVal) {
 
 // --- ASSET MANAGEMENT ---
 const images = {};
-for (let i = 1; i <= 8; i++) {
+for (let i = 1; i <= 6; i++) {
     images[i] = new Image();
     images[i].src = `${i}.jpg`;
 }
@@ -226,10 +425,15 @@ let timelineStartTime = 0;
 let lastCountdownBeatRegistered = -1;
 let currentCombo = 0; 
 
-// Scoreboard Machine Variables
 let rollingScoreDisplay = 0.0;
 let targetFinalScore = 0.0;
 let lastTickTime = 0;
+let currentActiveCommentary = ""; 
+
+let validHitsOffsetSum = 0;
+let validHitsCount = 0;
+let scoreFinishedRisingGlobal = false;
+let resultViewStartTimestamp = 0;
 
 function selectMode(mode) {
     currentMode = mode;
@@ -243,17 +447,20 @@ function selectMode(mode) {
         btnTaiko.classList.remove('selected');
     }
     
-    btnStart.disabled = false;
-    btnStart.style.background = '#00cec9';
-    btnStart.style.color = '#0c0c0e';
+    if (audioLoaded) {
+        btnStart.disabled = false;
+        btnStart.style.background = '#00cec9';
+        btnStart.style.color = '#0c0c0e';
+    } else {
+        audioStatusDiv.innerText = '⏳ 模式已選，請等待音檔載入完成後即可開始遊戲...';
+    }
 }
 
 function startGame() {
-    if (!currentMode) return;
-
-    warmupAudioContext();
+    if (!currentMode || !audioLoaded) return;
+    
     menu.style.display = 'none';
-    canvas.style.display = 'block';
+    canvasWrapper.style.display = 'block';
     currentCombo = 0; 
     generateSession();
     buildTimelineForQuestion();
@@ -274,7 +481,7 @@ function generateSession() {
     currentQuestionIndex = 0;
     
     for(let i = 0; i < 5; i++) {
-        let structuralPool = [1, 2, 3, 4, 5];
+        let structuralPool = [1, 2, 3, 4, 5, 6];
         shuffleArray(structuralPool);
         let patternCombination = [structuralPool[0], structuralPool[1], structuralPool[2], structuralPool[3]];
         questions.push(patternCombination);
@@ -289,23 +496,26 @@ function calculateAccuracyScore(offset) {
 }
 
 function getJudgmentData(offset, isMissedEntirely) {
-    // Uniform, thick arcade palette: #ffea00 gold theme for successful tracking hits
     if (isMissedEntirely) return { color: '#ff4d4d', text: '' }; 
     let absOffset = Math.abs(offset);
-    if (absOffset <= 0.030) return { color: '#ffea00', text: '完美' };   
-    if (absOffset <= 0.060) return { color: '#ffea00', text: '良' };      
-    if (absOffset <= 0.120) return { color: '#e67e22', text: '差' };       
+    // Mandatory change: text strings are retained, colors are unified to solid white
+    if (absOffset <= 0.030) return { color: '#ffffff', text: '完美' };   
+    if (absOffset <= 0.060) return { color: '#ffffff', text: '良' };      
+    if (absOffset <= 0.120) return { color: '#ffffff', text: '差' };       
     return { color: '#ff4d4d', text: '' };                              
 }
 
 function buildTimelineForQuestion() {
     gameState = 'TIMELINE_RUNNING';
+    scoreFinishedRisingGlobal = false;
     actionBtnContainer.innerHTML = '';
     
-    warmupAudioContext();
     timelineStartTime = performance.now() / 1000;
     lastCountdownBeatRegistered = -1;
     activeNotes = [];
+    
+    validHitsOffsetSum = 0;
+    validHitsCount = 0;
     
     let patternIDs = questions[currentQuestionIndex];
     let noteIdCounter = 0;
@@ -336,7 +546,9 @@ function buildTimelineForQuestion() {
 
 function endQuestion() {
     gameState = 'QUESTION_SCORE';
-    currentCombo = 0; // Clear combo count completely upon completing each individual question sequence
+    currentCombo = 0; 
+    scoreFinishedRisingGlobal = false;
+    resultViewStartTimestamp = performance.now() / 1000;
     
     let totalNotes = activeNotes.length;
     let accumulated = 0;
@@ -348,12 +560,15 @@ function endQuestion() {
     rollingScoreDisplay = 0.0;
     targetFinalScore = avg;
     lastTickTime = performance.now();
+    
+    currentActiveCommentary = getRandomComment(avg, false);
 
-    if (currentQuestionIndex < 4) {
-        actionBtnContainer.innerHTML = `<button class="btn-action" style="margin-top:0;" onclick="nextQuestion()">下一題</button>`;
-    } else {
-        actionBtnContainer.innerHTML = `<button class="btn-action" style="margin-top:0;" onclick="showGrandScoreboard()">結算總成績</button>`;
-    }
+    let nextClickAction = (currentQuestionIndex < 4) ? "nextQuestion()" : "showGrandScoreboard()";
+    actionBtnContainer.innerHTML = `
+        <button id="btn-next-step" class="modern-next-btn" onclick="${nextClickAction}" disabled>
+            <span>下一步</span>
+            <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>`;
 }
 
 function nextQuestion() {
@@ -362,11 +577,13 @@ function nextQuestion() {
 }
 
 function showGrandScoreboard() {
+    gameState = 'FINAL_SCOREBOARD';
     rollingScoreDisplay = 0.0;
     targetFinalScore = questionScores.reduce((a, b) => a + b, 0);
     lastTickTime = performance.now();
-    actionBtnContainer.innerHTML = `<button class="btn-action" style="margin-top:0;" onclick="location.reload()">再玩一次</button>`;
-    gameState = 'FINAL_SCOREBOARD';
+    currentActiveCommentary = getRandomComment(targetFinalScore, true);
+    
+    actionBtnContainer.innerHTML = `<button class="btn-action" style="margin-top:15px;" onclick="location.reload()">再玩一次</button>`;
 }
 
 function handleHit(forcedColumn = null) {
@@ -376,7 +593,7 @@ function handleHit(forcedColumn = null) {
     let countdownEndTime = 4 * BEAT_DURATION;
     
     if (relativeTime >= (countdownEndTime - WINDOW_MAX)) {
-        playHitSound();
+        playHitSound(forcedColumn);
     }
     
     for (let i = 0; i < activeNotes.length; i++) {
@@ -393,6 +610,9 @@ function handleHit(forcedColumn = null) {
                 note.hitScore = calculateAccuracyScore(timeDifference);
                 note.processed = true; 
                 note.hitTimestamp = relativeTime;
+                
+                validHitsOffsetSum += timeDifference;
+                validHitsCount++;
                 
                 let judgment = getJudgmentData(timeDifference, false);
                 if (judgment.text === '完美' || judgment.text === '良') {
@@ -413,7 +633,7 @@ window.addEventListener('keydown', (e) => {
         handleHit(null);
     } 
     else if (currentMode === 'phigros') {
-        let targets = { 'KeyC': 0, 'KeyV': 1, 'KeyB': 2, 'KeyN': 3 };
+        let targets = { 'KeyA': 0, 'KeyS': 1, 'KeyD': 2, 'KeyF': 3 };
         if (targets[e.code] !== undefined) {
             e.preventDefault();
             handleHit(targets[e.code]);
@@ -427,9 +647,11 @@ canvas.addEventListener('touchstart', (e) => {
     e.preventDefault(); 
     
     if (currentMode === 'taiko') {
+        // Taiko Mode: Phone interaction tracks tap anywhere on screening space
         handleHit(null);
     } 
     else if (currentMode === 'phigros') {
+        // Phigros Mode: Tracks hit coordinates mapped onto bottom 4 horizontal splits
         let rect = canvas.getBoundingClientRect();
         for (let i = 0; i < e.changedTouches.length; i++) {
             let touch = e.changedTouches[i];
@@ -443,19 +665,70 @@ canvas.addEventListener('touchstart', (e) => {
     }
 }, {passive: false});
 
+function getOptimizedScoreScreenTimeline() {
+    let generatedOffsets = [];
+    let currentOffset = 0;
+    let consecutiveGaps = 0;
+    
+    for (let i = 0; i < 32; i++) {
+        let randSpawn = Math.random() > 0.45;
+        if (!randSpawn) {
+            consecutiveGaps++;
+            if (consecutiveGaps >= 2) { 
+                randSpawn = true; 
+            }
+        }
+        if (randSpawn) {
+            consecutiveGaps = 0;
+            generatedOffsets.push(currentOffset);
+        }
+        currentOffset += SUB_BEAT_DURATION;
+    }
+    return generatedOffsets;
+}
+
+const scoreBackgroundTimelinePool = getOptimizedScoreScreenTimeline();
+
+function drawFadedGameplayBackground(simulatedRelativeTime) {
+    ctx.save();
+    let judgmentLineX = 220;
+    
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+    ctx.lineWidth = 4;
+    ctx.beginPath(); 
+    ctx.arc(judgmentLineX, 320, 45, 0, Math.PI * 2); 
+    ctx.stroke();
+    
+    ctx.fillStyle = 'rgba(255,255,255,0.02)';
+    ctx.fillRect(0, 270, canvas.width, 100); 
+    
+    scoreBackgroundTimelinePool.forEach(targetOffset => {
+        let targetTimeModulo = targetOffset % (8 * BEAT_DURATION);
+        let xPos = judgmentLineX + ((targetTimeModulo - simulatedRelativeTime) * 400);
+        if (xPos > -40 && xPos < canvas.width + 40) {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.55)'; 
+            ctx.beginPath(); ctx.arc(xPos, 320, 28, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = 'rgba(255, 56, 56, 0.65)'; 
+            ctx.beginPath(); ctx.arc(xPos, 320, 21, 0, Math.PI * 2); ctx.fill();
+        }
+    });
+    ctx.restore();
+}
+
 function gameLoop() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     let timeNow = performance.now() / 1000;
     let relativeTime = timeNow - timelineStartTime;
     let countdownEndTime = 4 * BEAT_DURATION;
     
-    if (gameState !== 'FINAL_SCOREBOARD') {
+    // 1. Live Interactive Gameplay Frame Handler
+    if (gameState === 'TIMELINE_RUNNING') {
         let patternIDs = questions[currentQuestionIndex];
         ctx.fillStyle = '#1e1e24';
         ctx.fillRect(0, 0, canvas.width, 110);
         
         let currentActiveImageIndex = -1;
-        if (gameState === 'TIMELINE_RUNNING' && relativeTime >= countdownEndTime) {
+        if (relativeTime >= countdownEndTime) {
             currentActiveImageIndex = Math.floor((relativeTime - countdownEndTime) / BEAT_DURATION);
         }
         
@@ -480,9 +753,13 @@ function gameLoop() {
                 ctx.strokeRect(xPos + 2, 2, imgWidth - 4, 106);
             }
         }
-    }
 
-    if (gameState === 'TIMELINE_RUNNING') {
+        ctx.save();
+        ctx.fillStyle = '#a4b0be';
+        ctx.font = 'bold 20px Arial, sans-serif';
+        ctx.fillText(`${currentQuestionIndex + 1} / 5`, 25, 145);
+        ctx.restore();
+
         if (relativeTime < countdownEndTime) {
             let currentCountdownBeat = Math.floor(relativeTime / BEAT_DURATION);
             if (currentCountdownBeat !== lastCountdownBeatRegistered && currentCountdownBeat < 4) {
@@ -492,12 +769,11 @@ function gameLoop() {
                 if (currentCountdownBeat === 0) scheduleBeep(470, ctxTime, 0.12, 1);
                 else if (currentCountdownBeat === 1) scheduleBeep(470, ctxTime, 0.12, 2);
                 else if (currentCountdownBeat === 2) scheduleBeep(470, ctxTime, 0.12, 3);
-                else if (currentCountdownBeat === 3) scheduleBeep(940, ctxTime, 0.50, 4);
+                else if (currentCountdownBeat === 3) scheduleBeep(940, ctxTime, 0.75, 4); 
             }
         }
 
         if (currentMode === 'taiko') {
-            // Big stationary judgment lane ring pushed right to exactly X: 220
             let judgmentLineX = 220;
             
             ctx.strokeStyle = '#fff';
@@ -509,17 +785,14 @@ function gameLoop() {
             ctx.fillStyle = 'rgba(255,255,255,0.03)';
             ctx.fillRect(0, 270, canvas.width, 100); 
             
-            // --- Left-Side Combo Counter Render Module ---
             if (currentCombo >= 2) {
                 ctx.save();
                 ctx.textAlign = 'center';
-                
                 ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
                 ctx.shadowBlur = 4;
                 ctx.shadowOffsetX = 2;
                 ctx.shadowOffsetY = 2;
                 
-                // Positioned comfortably to the left of the new circle layout coordinate line
                 ctx.fillStyle = '#ffb8b8';
                 ctx.font = 'bold 16px Impact, Arial Black, sans-serif';
                 ctx.fillText('COMBO', 110, 308);
@@ -535,29 +808,20 @@ function gameLoop() {
                 
                 if (note.processed) {
                     let judgment = getJudgmentData(note.hitOffset, note.missedEntirely);
-                    
                     let displayOnset = note.hitTimestamp || note.targetOffset + WINDOW_MAX;
                     if (relativeTime <= displayOnset + 0.15) {
                         if (judgment.text !== '') {
                             ctx.save();
-                            
-                            // Highly emphasized thick arcade text styling parameters
                             ctx.font = '900 36px "Arial Black", "Impact", "Microsoft JhengHei", sans-serif';
                             ctx.textAlign = 'center';
-                            
-                            // Crisp thick structural outline mask
                             ctx.strokeStyle = '#000000';
                             ctx.lineWidth = 6;
                             ctx.strokeText(judgment.text, judgmentLineX, 240);
-                            
-                            // High-vibrancy colored body overlay fill
-                            ctx.fillStyle = judgment.color;
+                            ctx.fillStyle = '#ffffff'; // Enforce monochrome white text response
                             ctx.fillText(judgment.text, judgmentLineX, 240);
-                            
                             ctx.restore();
                         }
                     }
-                    
                     if (note.missedEntirely && xPos > 0 && xPos < canvas.width) {
                         ctx.fillStyle = 'rgba(255, 77, 77, 0.5)';
                         ctx.beginPath(); ctx.arc(xPos, 320, 20, 0, Math.PI * 2); ctx.fill();
@@ -572,11 +836,21 @@ function gameLoop() {
             
         } else if (currentMode === 'phigros') {
             let colWidth = canvas.width / 4;
+            let keyLabels = ['A', 'S', 'D', 'F'];
+            
             for(let i=0; i<4; i++) {
                 ctx.strokeStyle = 'rgba(255,255,255,0.04)';
                 ctx.strokeRect(i * colWidth, 110, colWidth, canvas.height - 110);
-                ctx.fillStyle = 'rgba(0, 184, 148, 0.1)';
+                
+                ctx.fillStyle = 'rgba(0, 184, 148, 0.08)';
                 ctx.fillRect(i * colWidth + 4, canvas.height - 60, colWidth - 8, 25);
+                
+                ctx.save();
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
+                ctx.font = 'bold 15px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(keyLabels[i], i * colWidth + (colWidth / 2), canvas.height - 20);
+                ctx.restore();
             }
             
             activeNotes.forEach(note => {
@@ -585,14 +859,14 @@ function gameLoop() {
                 
                 if (note.processed) {
                     let judgment = getJudgmentData(note.hitOffset, note.missedEntirely);
-                    
                     let displayOnset = note.hitTimestamp || note.targetOffset + WINDOW_MAX;
                     if (relativeTime <= displayOnset + 0.15) {
                         if (judgment.text !== '') {
                             ctx.save();
-                            ctx.fillStyle = judgment.color;
+                            ctx.fillStyle = 'rgba(255, 255, 255, 0.22)'; // Unified clean feedback backdrop split
                             ctx.fillRect(colLeftX + 6, canvas.height - 55, colWidth - 12, 15);
                             ctx.font = 'bold 21px Segoe UI';
+                            ctx.fillStyle = '#ffffff'; // Enforce monochrome white text response
                             ctx.textAlign = 'center';
                             ctx.fillText(judgment.text, colLeftX + (colWidth / 2), canvas.height - 75);
                             ctx.restore();
@@ -607,121 +881,174 @@ function gameLoop() {
             });
         }
 
-        // --- Mario Kart Traffic Starter Light Display Module ---
-        if (relativeTime < countdownEndTime) {
-            let activeLightIndex = Math.floor(relativeTime / BEAT_DURATION); 
-            let lightY = 220;
-            let lightRadius = 25;
-            let gap = 70;
-            let startX = canvas.width / 2 - gap;
-
-            ctx.save();
-            for (let i = 0; i < 3; i++) {
-                let currentLightX = startX + (i * gap);
-                
-                ctx.beginPath();
-                ctx.arc(currentLightX, lightY, lightRadius, 0, Math.PI * 2);
-                ctx.fillStyle = '#33333d';
-                ctx.fill();
-                ctx.strokeStyle = '#55555f';
-                ctx.lineWidth = 3;
-                ctx.stroke();
-
-                if (activeLightIndex < 3) {
-                    if (i <= activeLightIndex) {
-                        ctx.beginPath();
-                        ctx.arc(currentLightX, lightY, lightRadius - 2, 0, Math.PI * 2);
-                        ctx.fillStyle = '#ff4757'; 
-                        ctx.shadowColor = '#ff4757';
-                        ctx.shadowBlur = 20;
-                        ctx.fill();
-                    }
-                } else {
-                    ctx.beginPath();
-                    ctx.arc(currentLightX, lightY, lightRadius - 2, 0, Math.PI * 2);
-                    ctx.fillStyle = '#2ed573'; 
-                    ctx.shadowColor = '#2ed573';
-                    ctx.shadowBlur = 20;
-                    ctx.fill();
-                }
-            }
-            ctx.restore();
-            uiOverlay.innerHTML = ''; 
-        } else {
-            let playedCount = 0;
-            activeNotes.forEach(note => {
-                if (relativeTime > note.targetOffset + WINDOW_MAX && !note.processed) {
-                    note.hitScore = 0.0;
-                    note.missedEntirely = true;
-                    note.processed = true; 
-                    currentCombo = 0; 
-                }
-                if (note.processed) playedCount++;
-            });
-            
-            uiOverlay.innerHTML = `當前關卡題目: ${currentQuestionIndex + 1}/5 | 已評估音符: ${playedCount}/${activeNotes.length}`;
-        }
+        let totalRegisteredNotesCount = activeNotes.length;
+        let processedNotesCount = 0;
         
-        if (relativeTime >= (8 * BEAT_DURATION)) {
+        activeNotes.forEach(note => {
+            if (relativeTime > note.targetOffset + WINDOW_MAX && !note.processed) {
+                note.hitScore = 0.0;
+                note.missedEntirely = true;
+                note.processed = true; 
+                currentCombo = 0; 
+            }
+            if (note.processed) {
+                processedNotesCount++;
+            }
+        });
+        
+        if (processedNotesCount >= totalRegisteredNotesCount && relativeTime >= (8 * BEAT_DURATION)) {
             endQuestion();
         }
+        uiOverlay.innerHTML = ''; 
     }
 
+    // 2. Individual Question Results Dashboard Screen Frame Handler
     if (gameState === 'QUESTION_SCORE') {
-        ctx.fillStyle = '#fff';
-        ctx.font = 'bold 26px Segoe UI';
-        ctx.fillText(`第 ${currentQuestionIndex + 1} 題 挑戰完成`, 290, 220);
-        
         let timestampNow = performance.now();
+
         if (rollingScoreDisplay < targetFinalScore) {
             let elapsed = timestampNow - lastTickTime;
             if (elapsed > 20) {
                 rollingScoreDisplay += 0.15; 
                 if (rollingScoreDisplay > targetFinalScore) rollingScoreDisplay = targetFinalScore;
-                
                 playScoreTickSound(rollingScoreDisplay, 10.0);
                 lastTickTime = timestampNow;
             }
+        } else {
+            scoreFinishedRisingGlobal = true;
+            let btnNext = document.getElementById('btn-next-step');
+            if (btnNext && btnNext.disabled) {
+                btnNext.disabled = false;
+            }
         }
 
-        ctx.font = 'bold 46px Segoe UI';
-        ctx.fillStyle = '#eccc68';
-        ctx.fillText(`${rollingScoreDisplay.toFixed(2)} / 10.00`, 285, 300);
+        if (currentMode === 'taiko') {
+            let elapsedResultTime = (timestampNow / 1000) - resultViewStartTimestamp;
+            let loopedSimulatedTime = (elapsedResultTime % (8 * BEAT_DURATION));
+            drawFadedGameplayBackground(loopedSimulatedTime);
+        }
+
+        ctx.save();
+        ctx.fillStyle = '#a4b0be';
+        ctx.font = 'bold 24px Arial, sans-serif';
+        ctx.fillText(`${currentQuestionIndex + 1} / 5`, 50, 65);
+        ctx.restore();
+
+        ctx.save();
+        ctx.textAlign = 'right';
+        ctx.font = '900 82px Helvetica Neue, Arial, sans-serif';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(`${rollingScoreDisplay.toFixed(2)}`, canvas.width - 50, 130);
+        ctx.restore();
+
+        if (currentMode === 'taiko' && scoreFinishedRisingGlobal) {
+            ctx.save();
+            ctx.textAlign = 'right';
+            ctx.font = 'bold 24px Microsoft JhengHei, sans-serif';
+            ctx.fillStyle = '#a4b0be';
+            ctx.fillText(currentActiveCommentary, canvas.width - 50, 185);
+            ctx.restore();
+        }
+
+        if (scoreFinishedRisingGlobal) {
+            ctx.save();
+            let displayTrendString = "";
+            
+            if (validHitsCount > 0) {
+                let trueMean = validHitsOffsetSum / validHitsCount; 
+
+                if (trueMean > 0.05) {
+                    displayTrendString = "太慢";
+                } else if (trueMean > 0.01) {
+                    displayTrendString = "稍慢";
+                } else if (trueMean < -0.05) {
+                    displayTrendString = "太快";
+                } else if (trueMean < -0.01) {
+                    displayTrendString = "稍快";
+                } else {
+                    displayTrendString = "完美";
+                }
+            } else {
+                displayTrendString = "全數落空";
+            }
+
+            ctx.fillStyle = "#ffffff";
+            ctx.font = '900 68px "Microsoft JhengHei", Arial, sans-serif';
+            ctx.fillText(displayTrendString, 50, 465);
+            ctx.restore();
+        }
         
-        uiOverlay.innerHTML = `請準備迎接下一小節的節奏`; 
+        uiOverlay.innerHTML = ''; 
     }
 
+    // 3. Final Overall Summary Performance Screen Frame Handler
     if (gameState === 'FINAL_SCOREBOARD') {
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 28px Segoe UI';
-        ctx.fillText('全關卡總結算成績單', 270, 140);
-        
-        ctx.font = '20px Segoe UI';
-        for (let i = 0; i < 5; i++) {
-            let score = questionScores[i] || 0;
-            ctx.fillStyle = '#a4b0be';
-            ctx.fillText(`第 ${i + 1} 題 得分: .................... ${score.toFixed(2)} / 10.0`, 210, 200 + (i * 35));
-        }
-        
-        ctx.strokeStyle = '#2f3542';
-        ctx.beginPath(); ctx.moveTo(200, 385); ctx.lineTo(600, 385); ctx.stroke();
-        
         let timestampNow = performance.now();
+        let totalScoreFinishedRising = false;
+
         if (rollingScoreDisplay < targetFinalScore) {
             let elapsed = timestampNow - lastTickTime;
             if (elapsed > 20) {
                 rollingScoreDisplay += 0.65; 
                 if (rollingScoreDisplay > targetFinalScore) rollingScoreDisplay = targetFinalScore;
-                
                 playScoreTickSound(rollingScoreDisplay, 50.0);
                 lastTickTime = timestampNow;
             }
+        } else {
+            totalScoreFinishedRising = true;
         }
+
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.font = '900 105px Helvetica Neue, Arial, sans-serif';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(`${rollingScoreDisplay.toFixed(2)}`, canvas.width / 2, 145);
         
-        ctx.font = 'bold 28px Segoe UI';
-        ctx.fillStyle = '#00cec9';
-        ctx.fillText(`總體累積得分: ...... ${rollingScoreDisplay.toFixed(2)} / 50.00`, 210, 430);
-        uiOverlay.innerHTML = "本次練習測試已全部結束！";
+        let mainTextWidth = ctx.measureText(`${rollingScoreDisplay.toFixed(2)}`).width;
+        ctx.textAlign = 'left';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.font = 'bold 48px Helvetica Neue, Arial, sans-serif';
+        ctx.fillText('/50', (canvas.width / 2) + (mainTextWidth / 2) + 5, 135);
+        ctx.restore();
+
+        if (currentMode === 'taiko' && totalScoreFinishedRising) {
+            ctx.save();
+            ctx.textAlign = 'center';
+            ctx.font = 'bold 26px Microsoft JhengHei, sans-serif';
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(currentActiveCommentary, canvas.width / 2, 215);
+            ctx.restore();
+        }
+
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(80, 260); ctx.lineTo(720, 260); ctx.stroke();
+
+        ctx.save();
+        ctx.textAlign = 'center';
+        let segmentSpacing = 130; 
+        let matrixStartLeftX = canvas.width / 2 - (2 * segmentSpacing);
+
+        for (let i = 0; i < 5; i++) {
+            let computedX = matrixStartLeftX + (i * segmentSpacing);
+            let scoreVal = questionScores[i] || 0;
+
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+            ctx.font = 'bold 20px Arial, sans-serif';
+            ctx.fillText(`${i + 1}`, computedX, 320);
+
+            if (totalScoreFinishedRising) {
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 36px Arial, sans-serif';
+                ctx.fillText(scoreVal.toFixed(1), computedX, 385);
+            } else {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+                ctx.font = 'bold 36px Arial, sans-serif';
+                ctx.fillText("0.0", computedX, 385);
+            }
+        }
+        ctx.restore();
+        uiOverlay.innerHTML = "";
     }
 
     requestAnimationFrame(gameLoop);
