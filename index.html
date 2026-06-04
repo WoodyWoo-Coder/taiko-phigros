@@ -246,7 +246,7 @@
                 aspect-ratio: 800 / 520 !important;
             }
             .wrapper-phigros { 
-                aspect-ratio: 450 / 680 !important; 
+                aspect-ratio: 450 / 580 !important; 
             }
             #action-btn-container {
                 margin-top: 15px !important;
@@ -272,7 +272,7 @@
     <div id="menu">
         <h1>擊擊復擊擊</h1>
         <div class="credits">製作者: 郭覲德 林映澄</div>
-        <div class="version-tag">Version 1.10</div>
+        <div class="version-tag">Version 1.12</div>
         
         <div id="tutorial-panel">
             <h3>玩法教學 (Tutorial)</h3>
@@ -870,9 +870,14 @@ function nextQuestion() {
 function showGrandScoreboard() {
     gameState = 'FINAL_SCOREBOARD';
     rollingScoreDisplay = 0.0;
-    targetFinalScore = questionScores.reduce((a, b) => a + b, 0);
+    
+    // Sum underlying raw scores (max 50 points total across 5 rounds)
+    let rawSum = questionScores.reduce((a, b) => a + b, 0);
+    // Convert target to a 100-point metric base layout scale
+    targetFinalScore = (rawSum / 50.0) * 100.0;
+    
     lastTickTime = performance.now();
-    currentActiveCommentary = getCommentaryByPoints(targetFinalScore, true);
+    currentActiveCommentary = getCommentaryByPoints(rawSum, true);
     actionBtnContainer.innerHTML = ''; 
     
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -1415,6 +1420,15 @@ function gameLoop() {
             ctx.font = '900 70px "Futura", "Helvetica Neue", sans-serif';
             ctx.fillText(`${rollingScoreDisplay.toFixed(2)}`, canvas.width / 2, 230);
             
+            // Cleanly measure score width in Phigros mode to layout the appended smaller /100 metric tag
+            let phigrosTextWidth = ctx.measureText(`${rollingScoreDisplay.toFixed(2)}`).width;
+            ctx.save();
+            ctx.textAlign = 'left';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+            ctx.font = 'bold 32px "Futura", sans-serif';
+            ctx.fillText('/100', (canvas.width / 2) + (phigrosTextWidth / 2) + 6, 222);
+            ctx.restore();
+            
             if (scoreFinishedRisingGlobal) {
                 ctx.fillStyle = '#747d8c';
                 ctx.font = 'bold 18px "Microsoft JhengHei", sans-serif';
@@ -1457,9 +1471,9 @@ function gameLoop() {
         if (rollingScoreDisplay < targetFinalScore) {
             let elapsed = timestampNow - lastTickTime;
             if (elapsed > 20) {
-                rollingScoreDisplay += 0.65; 
+                rollingScoreDisplay += 1.30; 
                 if (rollingScoreDisplay > targetFinalScore) rollingScoreDisplay = targetFinalScore;
-                playScoreTickSound(rollingScoreDisplay, 50.0);
+                playScoreTickSound(rollingScoreDisplay, 100.0);
                 lastTickTime = timestampNow;
             }
         } else {
@@ -1472,11 +1486,12 @@ function gameLoop() {
         ctx.fillStyle = '#ffffff';
         ctx.fillText(`${rollingScoreDisplay.toFixed(2)}`, canvas.width / 2, 145);
         
+        // Dynamically measure score size to cleanly align the smaller /100 indicator label
         let mainTextWidth = ctx.measureText(`${rollingScoreDisplay.toFixed(2)}`).width;
         ctx.textAlign = 'left';
         ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
         ctx.font = 'bold 48px "Futura", "Helvetica Neue", Arial, sans-serif';
-        ctx.fillText('/50', (canvas.width / 2) + (mainTextWidth / 2) + 5, 135);
+        ctx.fillText('/100', (canvas.width / 2) + (mainTextWidth / 2) + 5, 135);
         ctx.restore();
 
         if (totalScoreFinishedRising) {
