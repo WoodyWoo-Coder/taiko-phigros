@@ -8,7 +8,7 @@
         html, body {
             overflow-y: auto !important;
             -webkit-overflow-scrolling: touch;
-            height: 100%;
+            min-height: 100%;
         }
         body {
             background-color: #0c0c0e;
@@ -18,10 +18,7 @@
             flex-direction: column;
             align-items: center;
             justify-content: flex-start;
-            min-height: 100vh;
             margin: 0;
-            overflow-x: hidden;
-            user-select: none;
             padding: 20px 10px;
             box-sizing: border-box;
         }
@@ -191,7 +188,6 @@
         @media screen and (max-width: 1024px) {
             body.taiko-active-mode {
                 padding: 10px 5px;
-                min-height: 100vh;
             }
             body.taiko-active-mode #game-container {
                 width: 100%;
@@ -475,7 +471,6 @@ let validHitsCount = 0;
 let scoreFinishedRisingGlobal = false;
 let resultViewStartTimestamp = 0;
 
-// Dynamic In-Canvas Next Button Bounds (Global Variable definitions for Hit testing)
 let canvasNextBtnRect = { x: 0, y: 0, w: 0, h: 0 };
 
 function isMobileDevice() {
@@ -657,6 +652,9 @@ function endQuestion() {
     scoreFinishedRisingGlobal = false;
     resultViewStartTimestamp = performance.now() / 1000;
     
+    // Force score window context viewpoint to default to top instantly
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    
     let totalNotes = activeNotes.length;
     let accumulated = 0;
     activeNotes.forEach(note => { accumulated += note.hitScore; });
@@ -667,7 +665,7 @@ function endQuestion() {
         rollingScoreDisplay = 0.0;
         targetFinalScore = avg;
         currentActiveCommentary = getCommentaryByPoints(avg, false);
-        actionBtnContainer.innerHTML = ''; // Canvas handles next layout natively
+        actionBtnContainer.innerHTML = ''; 
     } else {
         let scaledGrandScore = avg * 10.0; 
         questionScores.push(scaledGrandScore);
@@ -691,6 +689,7 @@ function showGrandScoreboard() {
     lastTickTime = performance.now();
     currentActiveCommentary = getCommentaryByPoints(targetFinalScore, true);
     actionBtnContainer.innerHTML = ''; 
+    window.scrollTo({ top: 0, behavior: 'instant' });
 }
 
 function resetToHomeMenu() {
@@ -706,10 +705,7 @@ function resetToHomeMenu() {
     actionBtnContainer.innerHTML = '';
     uiOverlay.innerHTML = '';
     menu.style.display = 'flex';
-    
-    document.documentElement.style.overflow = 'auto';
-    document.body.style.overflow = 'auto';
-    window.scrollTo(0,0);
+    window.scrollTo({ top: 0, behavior: 'instant' });
     
     if (audioLoaded) {
         audioStatusDiv.style.color = '#0be881';
@@ -748,7 +744,6 @@ function handleHit(forcedColumn = null) {
     }
 }
 
-// Global helper to check canvas-button bounding intersection
 function isPointInRect(px, py, rect) {
     return px >= rect.x && px <= rect.x + rect.w && py >= rect.y && py <= rect.y + rect.h;
 }
@@ -853,12 +848,13 @@ function getOptimizedScoreScreenTimeline() {
 const scoreBackgroundTimelinePool = getOptimizedScoreScreenTimeline();
 
 function getMappedY(percentageVal) {
+    // Permanent Fixed Screen Alignment Track Coordinates (Does not change between questions)
     if (currentMode === 'taiko') {
         if (gameState === 'TIMELINE_RUNNING') {
             if (percentageVal === 80) return 90;  
             if (percentageVal === 20) return 410; 
         } 
-        else if (gameState === 'QUESTION_SCORE') {
+        else if (gameState === 'QUESTION_SCORE' || gameState === 'FINAL_SCOREBOARD') {
             if (percentageVal === 80) return 104; 
             if (percentageVal === 65) return 182; 
             if (percentageVal === 30) return 260; 
@@ -872,7 +868,10 @@ function drawModernCanvasNextButton(textString) {
     ctx.save();
     let btnW = 180, btnH = 50;
     let btnX = canvas.width - btnW - 50;
-    let btnY = getMappedY(15) - 105; // Placed exactly 10% vertical space above assessment baseline position
+    
+    // Positioned exactly 4% canvas height higher than the baseline evaluation string text y alignment coordinate
+    let evaluationBaselineY = getMappedY(15);
+    let btnY = evaluationBaselineY - (canvas.height * 0.04) - btnH; 
 
     canvasNextBtnRect = { x: btnX, y: btnY, w: btnW, h: btnH };
 
@@ -887,12 +886,10 @@ function drawModernCanvasNextButton(textString) {
         ctx.shadowBlur = 15;
     }
 
-    // Draw Rounded Capsule
     ctx.beginPath();
     ctx.roundRect(btnX, btnY, btnW, btnH, 25);
     ctx.fill();
 
-    // Text Label inside Button
     ctx.shadowBlur = 0;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -900,7 +897,6 @@ function drawModernCanvasNextButton(textString) {
     ctx.fillStyle = '#0c0c0e';
     ctx.fillText(textString, btnX + (btnW / 2) - 8, btnY + (btnH / 2));
 
-    // Arrow icon
     ctx.fillStyle = '#0c0c0e';
     ctx.font = '900 16px "Segoe UI"';
     ctx.fillText('→', btnX + btnW - 32, btnY + (btnH / 2));
@@ -913,7 +909,7 @@ function gameLoop() {
     let relativeTime = timeNow - timelineStartTime;
     let countdownEndTime = 4 * BEAT_DURATION;
 
-    // 1. Gameplay Frame Processing View
+    // 1. Gameplay View Window
     if (gameState === 'TIMELINE_RUNNING') {
         ctx.save();
         
@@ -1086,7 +1082,7 @@ function gameLoop() {
         uiOverlay.innerHTML = ''; 
     }
 
-    // 2. Score Result Screen View Implementation
+    // 2. Performance Metric Evaluator Screen
     if (gameState === 'QUESTION_SCORE') {
         let timestampNow = performance.now();
         let limitMaxScore = (currentMode === 'taiko') ? 10.0 : 100.0;
@@ -1204,14 +1200,13 @@ function gameLoop() {
             ctx.fillText(displayTrendString, 50, finalEvaluationY);
             ctx.restore();
 
-            // Native high-precision Canvas rendering for right-aligned Action triggers
             drawModernCanvasNextButton('下一步');
         }
         ctx.restore();
         uiOverlay.innerHTML = ''; 
     }
 
-    // 3. Overall Summary Grand Score Matrix Screen View
+    // 3. Scoreboard Summary Hub View Matrix
     if (gameState === 'FINAL_SCOREBOARD') {
         let timestampNow = performance.now();
         let totalScoreFinishedRising = false;
