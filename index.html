@@ -21,15 +21,21 @@
             box-sizing: border-box;
         }
         
-        /* Controlled by JavaScript to lock scrolling in game and allow on score screens */
+        /* Rigidly locked strictly during runtime play loop execution */
         body.scroll-locked {
             overflow: hidden !important;
             touch-action: none;
+            position: fixed;
+            width: 100%;
+            height: 100%;
         }
+        
+        /* Fully relaxed view state allowing browser native scrolling mechanisms */
         body.scroll-allowed {
             overflow-y: auto !important;
             touch-action: auto;
             -webkit-overflow-scrolling: touch;
+            position: relative;
         }
 
         #game-container { 
@@ -197,31 +203,47 @@
         #orientation-guard p { font-size: 15px; color: #a4b0be; margin: 0; }
 
         @media screen and (max-width: 1024px) {
-            body.taiko-active-mode {
+            /* Scroll locked layout for phone taiko play loop */
+            body.taiko-active-mode.scroll-locked {
                 padding: 10px 5px;
             }
-            body.taiko-active-mode #game-container {
+            body.taiko-active-mode.scroll-locked #game-container {
                 width: 100%;
                 max-width: 96vw;
             }
-            body.taiko-active-mode #canvas-wrapper {
+            body.taiko-active-mode.scroll-locked #canvas-wrapper {
                 width: 96vw !important;
                 max-width: 96vw !important;
                 aspect-ratio: 800 / 520 !important;
                 margin: 0 auto !important;
                 position: relative !important;
-                top: unset !important;
-                left: unset !important;
-                transform: unset !important;
                 box-sizing: border-box;
             }
+            
+            /* RELAXED: When evaluation screen hit, cleanly step back and let browser standard scroll flow execute */
+            body.taiko-active-mode.scroll-allowed {
+                padding: 20px 10px !important;
+                overflow-y: auto !important;
+            }
+            body.taiko-active-mode.scroll-allowed #game-container {
+                max-width: 100% !important;
+                width: auto !important;
+            }
+            body.taiko-active-mode.scroll-allowed #canvas-wrapper {
+                width: 94vw !important;
+                max-width: 800px !important;
+                aspect-ratio: 800 / 520 !important;
+                margin: 0 auto 20px auto !important;
+                position: relative !important;
+            }
+
             .wrapper-taiko {
                 aspect-ratio: 800 / 520 !important;
             }
             .wrapper-phigros { 
                 aspect-ratio: 450 / 680 !important; 
             }
-            body.taiko-active-mode #action-btn-container {
+            #action-btn-container {
                 margin-top: 15px !important;
                 position: relative !important;
                 display: flex !important;
@@ -245,7 +267,7 @@
     <div id="menu">
         <h1>擊擊復擊擊</h1>
         <div class="credits">製作者: 郭覲德 林映澄</div>
-        <div class="version-tag">Version 1.01</div>
+        <div class="version-tag">Version 1.02</div>
         
         <div id="tutorial-panel">
             <h3>玩法教學 (Tutorial)</h3>
@@ -612,12 +634,12 @@ function buildTimelineForQuestion() {
     validHitsCount = 0;
     let noteIdCounter = 0;
     
-    // Lock scrolling instantly during gameplay
+    // Lock scrolling viewport boundaries instantly during gameplay execution loops
     document.body.className = "scroll-locked";
     if (currentMode === 'taiko') {
         document.body.classList.add('taiko-active-mode');
     }
-    // Anchor to top for EVERY single question load loop
+    // Anchor to absolute top viewport line for EVERY new load sequence
     window.scrollTo({ top: 0, behavior: 'instant' });
     
     if (currentMode === 'taiko') {
@@ -672,12 +694,12 @@ function endQuestion() {
     scoreFinishedRisingGlobal = false;
     resultViewStartTimestamp = performance.now() / 1000;
     
-    // Unlock scrolling for evaluation view windows
+    // RELEASE scrolling immediately on evaluation view triggers
     document.body.className = "scroll-allowed";
     if (currentMode === 'taiko') {
         document.body.classList.add('taiko-active-mode');
     }
-    // Snap evaluation view header directly to top on start
+    // Forces structural window scrolling to reset instantly at top line layout anchors
     window.scrollTo({ top: 0, behavior: 'instant' });
     
     let totalNotes = activeNotes.length;
@@ -880,20 +902,20 @@ const scoreBackgroundTimelinePool = getOptimizedScoreScreenTimeline();
 function getMappedY(percentageVal) {
     let mobile = isMobileDevice();
     
-    // Taiko mode permanent structural tracking coordinates
+    // Taiko mode permanent layout routing positions
     if (currentMode === 'taiko') {
         if (gameState === 'TIMELINE_RUNNING') {
             if (percentageVal === 80) {
-                // Image panel baseline: Default is 90. Shift up 5% on phone mode (90 + 26) = 116
-                return mobile ? 116 : 90;
+                // Image Strip Box Coordinates: Desktop is centered at 90. Phone version sits tight flush along top edge (y=60)
+                return mobile ? 60 : 90;
             }  
             if (percentageVal === 20) {
-                // Hit track baseline: Default is 410. Shift up 20% on phone mode (410 + 104) = 514
-                return mobile ? 514 : 410; 
+                // Hit track line: Desktop maps at y=410. Phone versions shifts exactly 30% lower than the top image strip (60 + 156) = 216
+                return mobile ? 216 : 410; 
             } 
         } 
         else if (gameState === 'QUESTION_SCORE' || gameState === 'FINAL_SCOREBOARD') {
-            // Anchor tracks for evaluation score windows remain standard on all views
+            // Anchor coordinates for execution evaluations stay identical across standard modes
             if (percentageVal === 80) return 104; 
             if (percentageVal === 65) return 182; 
             if (percentageVal === 30) return 260; 
@@ -908,7 +930,6 @@ function drawModernCanvasNextButton(textString) {
     let btnW = 180, btnH = 50;
     let btnX = canvas.width - btnW - 50;
     
-    // Calculated precisely 4% canvas height above the baseline score evaluation text coordinate
     let evaluationBaselineY = getMappedY(15);
     let btnY = evaluationBaselineY - (canvas.height * 0.04) - btnH; 
 
