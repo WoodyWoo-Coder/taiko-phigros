@@ -123,35 +123,6 @@
             display: flex;
             justify-content: center;
         }
-        
-        .modern-next-btn {
-            background: #ffffff;
-            color: #0c0c0e;
-            border: none;
-            padding: 14px 36px;
-            font-size: 18px;
-            font-weight: 800;
-            border-radius: 30px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            box-shadow: 0 4px 20px rgba(255,255,255,0.15);
-            z-index: 10;
-            letter-spacing: 1px;
-            transition: transform 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
-        }
-        
-        .modern-next-btn:hover:not(:disabled) { 
-            transform: translateY(-2px); 
-            background: #00cec9; 
-            color: #0c0c0e;
-            box-shadow: 0 6px 25px rgba(0, 206, 201, 0.4);
-        }
-        .modern-next-btn:disabled { background: #2f3542; color: #57606f; cursor: not-allowed; opacity: 0.4; box-shadow: none; }
-        .modern-next-btn svg { width: 18px; height: 18px; fill: currentColor; transition: transform 0.2s ease; }
-        .modern-next-btn:hover svg { transform: translateX(3px); }
 
         #tutorial-panel {
             background: #1e1e24;
@@ -217,7 +188,6 @@
         #orientation-guard h2 { font-size: 24px; margin: 0 0 10px 0; color: #00cec9; }
         #orientation-guard p { font-size: 15px; color: #a4b0be; margin: 0; }
 
-        /* PHONE MODE RESPONSIVENESS OVERHAUL */
         @media screen and (max-width: 1024px) {
             body.taiko-active-mode {
                 padding: 10px 5px;
@@ -250,15 +220,6 @@
                 display: flex !important;
                 justify-content: center !important;
                 width: 100% !important;
-            }
-            body.taiko-active-mode .modern-next-btn {
-                position: relative !important;
-                bottom: unset !important;
-                right: unset !important;
-                padding: 12px 40px !important;
-                font-size: 16px !important;
-                width: auto !important;
-                min-width: 140px;
             }
         }
     </style>
@@ -514,6 +475,9 @@ let validHitsCount = 0;
 let scoreFinishedRisingGlobal = false;
 let resultViewStartTimestamp = 0;
 
+// Dynamic In-Canvas Next Button Bounds (Global Variable definitions for Hit testing)
+let canvasNextBtnRect = { x: 0, y: 0, w: 0, h: 0 };
+
 function isMobileDevice() {
     return window.innerWidth <= 1024;
 }
@@ -703,21 +667,13 @@ function endQuestion() {
         rollingScoreDisplay = 0.0;
         targetFinalScore = avg;
         currentActiveCommentary = getCommentaryByPoints(avg, false);
-        
-        let nextClickAction = (currentQuestionIndex < 4) ? "nextQuestion()" : "showGrandScoreboard()";
-        
-        actionBtnContainer.innerHTML = `
-            <button id="btn-next-step" class="modern-next-btn" onclick="${nextClickAction}" disabled>
-                <span>下一步</span>
-                <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </button>`;
+        actionBtnContainer.innerHTML = ''; // Canvas handles next layout natively
     } else {
         let scaledGrandScore = avg * 10.0; 
         questionScores.push(scaledGrandScore);
         rollingScoreDisplay = 0.0;
         targetFinalScore = scaledGrandScore;
         currentActiveCommentary = getCommentaryByPoints(scaledGrandScore, true);
-        
         actionBtnContainer.innerHTML = `<button id="btn-next-step" class="btn-action" onclick="location.reload()" disabled>再玩一次</button>`;
     }
     lastTickTime = performance.now();
@@ -734,15 +690,7 @@ function showGrandScoreboard() {
     targetFinalScore = questionScores.reduce((a, b) => a + b, 0);
     lastTickTime = performance.now();
     currentActiveCommentary = getCommentaryByPoints(targetFinalScore, true);
-    
-    if (currentMode === 'taiko') {
-        actionBtnContainer.innerHTML = `
-            <button class="modern-next-btn" onclick="resetToHomeMenu()">
-                <span>回到主選單</span>
-            </button>`;
-    } else {
-        actionBtnContainer.innerHTML = `<button class="btn-action" onclick="resetToHomeMenu()">回到主選單</button>`;
-    }
+    actionBtnContainer.innerHTML = ''; 
 }
 
 function resetToHomeMenu() {
@@ -759,7 +707,6 @@ function resetToHomeMenu() {
     uiOverlay.innerHTML = '';
     menu.style.display = 'flex';
     
-    // Explicitly wipe overrides out entirely to give standard scrolling engines back full control
     document.documentElement.style.overflow = 'auto';
     document.body.style.overflow = 'auto';
     window.scrollTo(0,0);
@@ -801,6 +748,34 @@ function handleHit(forcedColumn = null) {
     }
 }
 
+// Global helper to check canvas-button bounding intersection
+function isPointInRect(px, py, rect) {
+    return px >= rect.x && px <= rect.x + rect.w && py >= rect.y && py <= rect.y + rect.h;
+}
+
+function executeCanvasButtonClickLogic() {
+    if (!scoreFinishedRisingGlobal) return;
+    if (gameState === 'QUESTION_SCORE' && currentMode === 'taiko') {
+        if (currentQuestionIndex < 4) nextQuestion();
+        else showGrandScoreboard();
+    } else if (gameState === 'FINAL_SCOREBOARD' && currentMode === 'taiko') {
+        resetToHomeMenu();
+    }
+}
+
+window.addEventListener('click', (e) => {
+    if (gameState !== 'QUESTION_SCORE' && gameState !== 'FINAL_SCOREBOARD') return;
+    if (currentMode !== 'taiko') return;
+    
+    let rect = canvas.getBoundingClientRect();
+    let clickX = ((e.clientX - rect.left) / rect.width) * canvas.width;
+    let clickY = ((e.clientY - rect.top) / rect.height) * canvas.height;
+    
+    if (isPointInRect(clickX, clickY, canvasNextBtnRect)) {
+        executeCanvasButtonClickLogic();
+    }
+});
+
 window.addEventListener('keydown', (e) => { 
     if (currentMode === 'taiko' && e.code === 'Space') {
         e.preventDefault();
@@ -815,14 +790,9 @@ window.addEventListener('keydown', (e) => {
     }
 });
 
-// FIXED TOUCH BINDINGS: ONLY cancel event defaults if tapping INSIDE the active canvas footprints
 window.addEventListener('touchstart', (e) => {
-    if (gameState !== 'TIMELINE_RUNNING') return;
-    
     let rect = canvas.getBoundingClientRect();
     let touch = e.touches[0];
-    
-    // Check if touch is within game boundaries
     let insideCanvas = (
         touch.clientX >= rect.left &&
         touch.clientX <= rect.right &&
@@ -830,8 +800,22 @@ window.addEventListener('touchstart', (e) => {
         touch.clientY <= rect.bottom
     );
 
+    if (gameState === 'QUESTION_SCORE' || gameState === 'FINAL_SCOREBOARD') {
+        if (currentMode === 'taiko' && insideCanvas) {
+            e.preventDefault();
+            let touchX = ((touch.clientX - rect.left) / rect.width) * canvas.width;
+            let touchY = ((touch.clientY - rect.top) / rect.height) * canvas.height;
+            if (isPointInRect(touchX, touchY, canvasNextBtnRect)) {
+                executeCanvasButtonClickLogic();
+            }
+        }
+        return;
+    }
+
+    if (gameState !== 'TIMELINE_RUNNING') return;
+
     if (currentMode === 'taiko') {
-        if (!insideCanvas) return; // Let general window gestures pass unmodified to maintain normal scrolling profiles
+        if (!insideCanvas) return; 
         e.preventDefault();
         handleHit(null);
     } 
@@ -871,8 +855,8 @@ const scoreBackgroundTimelinePool = getOptimizedScoreScreenTimeline();
 function getMappedY(percentageVal) {
     if (currentMode === 'taiko') {
         if (gameState === 'TIMELINE_RUNNING') {
-            if (percentageVal === 85) return 130;  
-            if (percentageVal === 10) return 416; 
+            if (percentageVal === 80) return 90;  
+            if (percentageVal === 20) return 410; 
         } 
         else if (gameState === 'QUESTION_SCORE') {
             if (percentageVal === 80) return 104; 
@@ -882,6 +866,45 @@ function getMappedY(percentageVal) {
         }
     }
     return canvas.height - (canvas.height * (percentageVal / 100));
+}
+
+function drawModernCanvasNextButton(textString) {
+    ctx.save();
+    let btnW = 180, btnH = 50;
+    let btnX = canvas.width - btnW - 50;
+    let btnY = getMappedY(15) - 105; // Placed exactly 10% vertical space above assessment baseline position
+
+    canvasNextBtnRect = { x: btnX, y: btnY, w: btnW, h: btnH };
+
+    if (!scoreFinishedRisingGlobal) {
+        ctx.fillStyle = '#2f3542';
+        ctx.strokeStyle = '#57606f';
+        ctx.globalAlpha = 0.4;
+    } else {
+        ctx.fillStyle = '#ffffff';
+        ctx.strokeStyle = '#ffffff';
+        ctx.shadowColor = 'rgba(255, 255, 255, 0.2)';
+        ctx.shadowBlur = 15;
+    }
+
+    // Draw Rounded Capsule
+    ctx.beginPath();
+    ctx.roundRect(btnX, btnY, btnW, btnH, 25);
+    ctx.fill();
+
+    // Text Label inside Button
+    ctx.shadowBlur = 0;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = '900 18px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#0c0c0e';
+    ctx.fillText(textString, btnX + (btnW / 2) - 8, btnY + (btnH / 2));
+
+    // Arrow icon
+    ctx.fillStyle = '#0c0c0e';
+    ctx.font = '900 16px "Segoe UI"';
+    ctx.fillText('→', btnX + btnW - 32, btnY + (btnH / 2));
+    ctx.restore();
 }
 
 function gameLoop() {
@@ -896,8 +919,8 @@ function gameLoop() {
         
         if (currentMode === 'taiko') {
             let patternIDs = questions[currentQuestionIndex];
-            let cardPanelHeight = 110;
-            let cardPanelY = getMappedY(85); 
+            let cardPanelHeight = 120;
+            let cardPanelY = getMappedY(80); 
             
             ctx.fillStyle = '#1e1e24';
             ctx.fillRect(0, cardPanelY, canvas.width, cardPanelHeight);
@@ -922,7 +945,7 @@ function gameLoop() {
                 }
                 if (i === currentActiveImageIndex) {
                     ctx.strokeStyle = '#00cec9';
-                    ctx.lineWidth = 4;
+                    ctx.lineWidth = 5;
                     ctx.strokeRect(xPos + 2, cardPanelY + 2, imgWidth - 4, cardPanelHeight - 4);
                 }
             }
@@ -942,9 +965,9 @@ function gameLoop() {
 
         if (currentMode === 'taiko') {
             let judgmentLineX = 220;
-            let trackBaseY = getMappedY(10); 
+            let trackBaseY = getMappedY(20); 
             let circleRadius = 45;
-            let barHeight = 100;
+            let barHeight = 120;
 
             ctx.strokeStyle = '#fff';
             ctx.lineWidth = 4;
@@ -980,16 +1003,16 @@ function gameLoop() {
                             ctx.textAlign = 'center';
                             ctx.strokeStyle = '#000000';
                             ctx.lineWidth = 6;
-                            ctx.strokeText(judgment.text, judgmentLineX, trackBaseY - 75);
+                            ctx.strokeText(judgment.text, judgmentLineX, trackBaseY - 85);
                             ctx.fillStyle = '#ffffff'; 
-                            ctx.fillText(judgment.text, judgmentLineX, trackBaseY - 75);
+                            ctx.fillText(judgment.text, judgmentLineX, trackBaseY - 85);
                             ctx.restore();
                         }
                     }
                 } else {
                     if (xPos > judgmentLineX - 40 && xPos < canvas.width + 40) {
                         ctx.fillStyle = '#ffffff'; 
-                        ctx.beginPath(); ctx.arc(xPos, trackBaseY, 30, 0, Math.PI * 2); ctx.fill();
+                        ctx.beginPath(); ctx.arc(xPos, trackBaseY, 32, 0, Math.PI * 2); ctx.fill();
                     }
                 }
             });
@@ -1078,8 +1101,8 @@ function gameLoop() {
             }
         } else {
             scoreFinishedRisingGlobal = true;
-            let btnNext = document.getElementById('btn-next-step');
-            if (btnNext && btnNext.disabled) btnNext.disabled = false;
+            let btnPhigrosNext = document.getElementById('btn-next-step');
+            if (btnPhigrosNext && btnPhigrosNext.disabled) btnPhigrosNext.disabled = false;
         }
 
         ctx.save();
@@ -1180,6 +1203,9 @@ function gameLoop() {
             let finalEvaluationY = getMappedY(15);
             ctx.fillText(displayTrendString, 50, finalEvaluationY);
             ctx.restore();
+
+            // Native high-precision Canvas rendering for right-aligned Action triggers
+            drawModernCanvasNextButton('下一步');
         }
         ctx.restore();
         uiOverlay.innerHTML = ''; 
@@ -1251,6 +1277,10 @@ function gameLoop() {
             }
         }
         ctx.restore();
+
+        if (totalScoreFinishedRising && currentMode === 'taiko') {
+            drawModernCanvasNextButton('回主選單');
+        }
         uiOverlay.innerHTML = "";
     }
 
