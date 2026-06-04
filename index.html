@@ -5,9 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>擊擊復擊擊 - Percussion Practice Suite</title>
     <style>
-        :root {
-            --taiko-mobile-height: 75vh; /* Comfortably fills the viewport vertically while keeping the 50% line exactly centered */
-        }
         html, body {
             overflow-y: auto !important;
             -webkit-overflow-scrolling: touch;
@@ -120,13 +117,14 @@
         
         #action-btn-container {
             position: relative;
-            margin-top: -10px;
+            margin-top: 15px;
             z-index: 20;
             width: 100%;
+            display: flex;
+            justify-content: center;
         }
         
         .modern-next-btn {
-            position: absolute;
             background: #ffffff;
             color: #0c0c0e;
             border: none;
@@ -137,16 +135,12 @@
             cursor: pointer;
             display: flex;
             align-items: center;
+            justify-content: center;
             gap: 10px;
             box-shadow: 0 4px 20px rgba(255,255,255,0.15);
             z-index: 10;
             letter-spacing: 1px;
             transition: transform 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
-        }
-        
-        .taiko-next-btn-placement {
-            bottom: 130px; 
-            right: 45px;
         }
         
         .modern-next-btn:hover:not(:disabled) { 
@@ -223,39 +217,48 @@
         #orientation-guard h2 { font-size: 24px; margin: 0 0 10px 0; color: #00cec9; }
         #orientation-guard p { font-size: 15px; color: #a4b0be; margin: 0; }
 
+        /* PHONE MODE RESPONSIVENESS OVERHAUL */
         @media screen and (max-width: 1024px) {
-            /* TAIKO PHONE MODE ONLY */
             body.taiko-active-mode {
-                padding: 0;
-                min-height: 100.5vh; /* Small bounce overhead to allow native scroll engines to engage */
+                padding: 10px 5px;
+                min-height: 100vh;
+            }
+            body.taiko-active-mode #game-container {
+                width: 100%;
+                max-width: 96vw;
             }
             body.taiko-active-mode #canvas-wrapper {
-                position: fixed !important;
-                top: 50vh !important;
-                left: 50vw !important;
-                transform: translate(-50%, -50%) !important;
-                height: var(--taiko-mobile-height) !important;
-                width: calc(var(--taiko-mobile-height) * (800 / 520)) !important;
-                max-width: 92vw !important; /* Expands bounds side-to-side to fix image_3fc006.png squish */
-                margin: 0 !important;
+                width: 96vw !important;
+                max-width: 96vw !important;
+                aspect-ratio: 800 / 520 !important;
+                margin: 0 auto !important;
+                position: relative !important;
+                top: unset !important;
+                left: unset !important;
+                transform: unset !important;
                 box-sizing: border-box;
             }
             .wrapper-taiko {
-                aspect-ratio: auto !important; 
+                aspect-ratio: 800 / 520 !important;
             }
             .wrapper-phigros { 
                 aspect-ratio: 450 / 680 !important; 
             }
-            
-            /* Pin the next button firmly relative to the active mobile canvas footprint */
-            body.taiko-active-mode .taiko-next-btn-placement {
-                position: fixed !important;
-                bottom: 6vh !important; 
-                right: 6vw !important;
-                z-index: 9999 !important;
+            body.taiko-active-mode #action-btn-container {
+                margin-top: 15px !important;
+                position: relative !important;
+                display: flex !important;
+                justify-content: center !important;
+                width: 100% !important;
             }
-            .phigros-mobile-btn {
-                margin-top: -5px !important;
+            body.taiko-active-mode .modern-next-btn {
+                position: relative !important;
+                bottom: unset !important;
+                right: unset !important;
+                padding: 12px 40px !important;
+                font-size: 16px !important;
+                width: auto !important;
+                min-width: 140px;
             }
         }
     </style>
@@ -339,7 +342,7 @@ const INDIVIDUAL_COMMENTS = {
     tier1: ["海倫凱勒都比你強。", "你試了。我們注意到了。就這樣。", "我阿公都比你行。", "連一根皮毛都沒摸到。"],
     tier2: ["就這?", "中庸。字典裡最無趣的詞。", "你還好嗎?"],
     tier3: ["你抓到大概了。真的只有大概。", "還行吧。", "看來你還是有點東西的。只有一點點。"],
-    tier4: ["我們注意到你的表現了。現在開心了嗎?", "勉強能拿來炫耀。", "好吧。我承認你有點實力。"],
+    tier4: ["我們注意到你的表现了。現在開心了嗎?", "勉強能拿來炫耀。", "好吧。我承認你有點實力。"],
     tier5: ["精確到讓人作嘔。", "挺沒用的能力其實。", "近乎完美都不足以形容你。", "外星人，你被我們逮捕了。"]
 };
 
@@ -556,16 +559,12 @@ function selectMode(mode) {
         btnPhigros.classList.remove('selected');
         canvasWrapper.className = '';
         canvasWrapper.classList.add('wrapper-taiko');
-        canvas.width = 800;
-        canvas.height = 520;
     } else {
         document.body.classList.remove('taiko-active-mode');
         btnPhigros.classList.add('selected');
         btnTaiko.classList.remove('selected');
         canvasWrapper.className = '';
         canvasWrapper.classList.add('wrapper-phigros');
-        canvas.width = 450;
-        canvas.height = 580;
     }
     checkOrientation();
     if (audioLoaded) {
@@ -708,7 +707,7 @@ function endQuestion() {
         let nextClickAction = (currentQuestionIndex < 4) ? "nextQuestion()" : "showGrandScoreboard()";
         
         actionBtnContainer.innerHTML = `
-            <button id="btn-next-step" class="modern-next-btn taiko-next-btn-placement" onclick="${nextClickAction}" disabled>
+            <button id="btn-next-step" class="modern-next-btn" onclick="${nextClickAction}" disabled>
                 <span>下一步</span>
                 <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>`;
@@ -719,7 +718,7 @@ function endQuestion() {
         targetFinalScore = scaledGrandScore;
         currentActiveCommentary = getCommentaryByPoints(scaledGrandScore, true);
         
-        actionBtnContainer.innerHTML = `<button id="btn-next-step" class="btn-action phigros-mobile-btn" onclick="location.reload()" disabled>再玩一次</button>`;
+        actionBtnContainer.innerHTML = `<button id="btn-next-step" class="btn-action" onclick="location.reload()" disabled>再玩一次</button>`;
     }
     lastTickTime = performance.now();
 }
@@ -738,11 +737,11 @@ function showGrandScoreboard() {
     
     if (currentMode === 'taiko') {
         actionBtnContainer.innerHTML = `
-            <button class="modern-next-btn taiko-next-btn-placement" onclick="resetToHomeMenu()">
+            <button class="modern-next-btn" onclick="resetToHomeMenu()">
                 <span>回到主選單</span>
             </button>`;
     } else {
-        actionBtnContainer.innerHTML = `<button class="btn-action phigros-mobile-btn" onclick="resetToHomeMenu()">回到主選單</button>`;
+        actionBtnContainer.innerHTML = `<button class="btn-action" onclick="resetToHomeMenu()">回到主選單</button>`;
     }
 }
 
@@ -760,7 +759,7 @@ function resetToHomeMenu() {
     uiOverlay.innerHTML = '';
     menu.style.display = 'flex';
     
-    // Explicitly restore document dimensions to fix horizontal view tracking lockouts
+    // Explicitly wipe overrides out entirely to give standard scrolling engines back full control
     document.documentElement.style.overflow = 'auto';
     document.body.style.overflow = 'auto';
     window.scrollTo(0,0);
@@ -816,30 +815,37 @@ window.addEventListener('keydown', (e) => {
     }
 });
 
-// Optimized scrolling container bindings targeting peripheral track spaces
+// FIXED TOUCH BINDINGS: ONLY cancel event defaults if tapping INSIDE the active canvas footprints
 window.addEventListener('touchstart', (e) => {
     if (gameState !== 'TIMELINE_RUNNING') return;
     
+    let rect = canvas.getBoundingClientRect();
+    let touch = e.touches[0];
+    
+    // Check if touch is within game boundaries
+    let insideCanvas = (
+        touch.clientX >= rect.left &&
+        touch.clientX <= rect.right &&
+        touch.clientY >= rect.top &&
+        touch.clientY <= rect.bottom
+    );
+
     if (currentMode === 'taiko') {
-        // Allow pure top/bottom boundary sweeps outside canvas height to bypass game hit overrides
-        let touchObj = e.touches[0];
-        if (touchObj.clientY < window.innerHeight * 0.12 || touchObj.clientY > window.innerHeight * 0.88) {
-            return; 
-        }
+        if (!insideCanvas) return; // Let general window gestures pass unmodified to maintain normal scrolling profiles
+        e.preventDefault();
         handleHit(null);
     } 
     else if (currentMode === 'phigros') {
         e.preventDefault(); 
-        let rect = canvas.getBoundingClientRect();
         for (let i = 0; i < e.changedTouches.length; i++) {
-            let touch = e.changedTouches[i];
-            let canvasRelativeX = touch.clientX - rect.left;
+            let t = e.changedTouches[i];
+            let canvasRelativeX = t.clientX - rect.left;
             let calculatedColumn = Math.floor((canvasRelativeX / rect.width) * 4);
             calculatedColumn = Math.max(0, Math.min(3, calculatedColumn));
             handleHit(calculatedColumn);
         }
     }
-}, {passive: true});
+}, { passive: false });
 
 function getOptimizedScoreScreenTimeline() {
     let generatedOffsets = [];
@@ -864,11 +870,9 @@ const scoreBackgroundTimelinePool = getOptimizedScoreScreenTimeline();
 
 function getMappedY(percentageVal) {
     if (currentMode === 'taiko') {
-        let scale = (isMobileDevice()) ? 0.8 : 1.0;
-        
         if (gameState === 'TIMELINE_RUNNING') {
-            if (percentageVal === 85) return 130 * scale;  
-            if (percentageVal === 10) return 416 * scale; 
+            if (percentageVal === 85) return 130;  
+            if (percentageVal === 10) return 416; 
         } 
         else if (gameState === 'QUESTION_SCORE') {
             if (percentageVal === 80) return 104; 
@@ -885,7 +889,6 @@ function gameLoop() {
     let timeNow = performance.now() / 1000;
     let relativeTime = timeNow - timelineStartTime;
     let countdownEndTime = 4 * BEAT_DURATION;
-    let scale = (currentMode === 'taiko' && isMobileDevice()) ? 0.8 : 1.0;
 
     // 1. Gameplay Frame Processing View
     if (gameState === 'TIMELINE_RUNNING') {
@@ -893,7 +896,7 @@ function gameLoop() {
         
         if (currentMode === 'taiko') {
             let patternIDs = questions[currentQuestionIndex];
-            let cardPanelHeight = 110 * scale;
+            let cardPanelHeight = 110;
             let cardPanelY = getMappedY(85); 
             
             ctx.fillStyle = '#1e1e24';
@@ -914,12 +917,12 @@ function gameLoop() {
                     ctx.strokeStyle = '#3a3a44';
                     ctx.strokeRect(xPos, cardPanelY, imgWidth, cardPanelHeight);
                     ctx.fillStyle = '#fff';
-                    ctx.font = `${14 * scale}px Segoe UI`;
-                    ctx.fillText(`卡片 ${imgId}.jpg`, xPos + (15 * scale), cardPanelY + (cardPanelHeight / 2));
+                    ctx.font = `14px Segoe UI`;
+                    ctx.fillText(`卡片 ${imgId}.jpg`, xPos + 15, cardPanelY + (cardPanelHeight / 2));
                 }
                 if (i === currentActiveImageIndex) {
                     ctx.strokeStyle = '#00cec9';
-                    ctx.lineWidth = 4 * scale;
+                    ctx.lineWidth = 4;
                     ctx.strokeRect(xPos + 2, cardPanelY + 2, imgWidth - 4, cardPanelHeight - 4);
                 }
             }
@@ -938,13 +941,13 @@ function gameLoop() {
         }
 
         if (currentMode === 'taiko') {
-            let judgmentLineX = 220 * scale;
+            let judgmentLineX = 220;
             let trackBaseY = getMappedY(10); 
-            let circleRadius = 45 * scale;
-            let barHeight = 100 * scale;
+            let circleRadius = 45;
+            let barHeight = 100;
 
             ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 4 * scale;
+            ctx.lineWidth = 4;
             ctx.beginPath(); 
             ctx.arc(judgmentLineX, trackBaseY, circleRadius, 0, Math.PI * 2); 
             ctx.stroke();
@@ -957,36 +960,36 @@ function gameLoop() {
                 ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
                 ctx.shadowBlur = 4;
                 ctx.fillStyle = '#ffb8b8';
-                ctx.font = `bold ${16 * scale}px Impact, Arial`;
-                ctx.fillText('COMBO', 110 * scale, trackBaseY - (12 * scale));
+                ctx.font = `bold 16px Impact, Arial`;
+                ctx.fillText('COMBO', 110, trackBaseY - 12);
                 ctx.fillStyle = '#ffffff';
-                ctx.font = `bold ${38 * scale}px Impact, Arial`; 
-                ctx.fillText(currentCombo, 110 * scale, trackBaseY + (25 * scale));
+                ctx.font = `bold 38px Impact, Arial`; 
+                ctx.fillText(currentCombo, 110, trackBaseY + 25);
                 ctx.restore();
             }
             
             activeNotes.forEach(note => {
-                let xPos = judgmentLineX + ((note.targetOffset - relativeTime) * 400 * scale);
+                let xPos = judgmentLineX + ((note.targetOffset - relativeTime) * 400);
                 if (note.processed) {
                     let judgment = getJudgmentData(note.hitOffset, note.missedEntirely);
                     let displayOnset = note.hitTimestamp || note.targetOffset + WINDOW_MAX;
                     if (relativeTime <= displayOnset + 0.15) {
                         if (judgment.text !== '') {
                             ctx.save();
-                            ctx.font = `900 ${36 * scale}px "Arial Black", "Microsoft JhengHei"`;
+                            ctx.font = `900 36px "Arial Black", "Microsoft JhengHei"`;
                             ctx.textAlign = 'center';
                             ctx.strokeStyle = '#000000';
-                            ctx.lineWidth = 6 * scale;
-                            ctx.strokeText(judgment.text, judgmentLineX, trackBaseY - (75 * scale));
+                            ctx.lineWidth = 6;
+                            ctx.strokeText(judgment.text, judgmentLineX, trackBaseY - 75);
                             ctx.fillStyle = '#ffffff'; 
-                            ctx.fillText(judgment.text, judgmentLineX, trackBaseY - (75 * scale));
+                            ctx.fillText(judgment.text, judgmentLineX, trackBaseY - 75);
                             ctx.restore();
                         }
                     }
                 } else {
-                    if (xPos > judgmentLineX - (40 * scale) && xPos < canvas.width + (40 * scale)) {
+                    if (xPos > judgmentLineX - 40 && xPos < canvas.width + 40) {
                         ctx.fillStyle = '#ffffff'; 
-                        ctx.beginPath(); ctx.arc(xPos, trackBaseY, 30 * scale, 0, Math.PI * 2); ctx.fill();
+                        ctx.beginPath(); ctx.arc(xPos, trackBaseY, 30, 0, Math.PI * 2); ctx.fill();
                     }
                 }
             });
