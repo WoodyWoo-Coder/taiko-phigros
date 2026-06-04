@@ -12,19 +12,21 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            height: 100vh;
+            justify-content: flex-start; /* Changed to allow scrolling from the top if content overflows */
+            min-height: 100vh;
             margin: 0;
-            overflow: hidden;
+            overflow-x: hidden;
+            overflow-y: auto; /* Enables scrolling on short screens/mobile */
             user-select: none;
+            padding: 20px 10px;
+            box-sizing: border-box;
         }
         #game-container { 
             text-align: center; 
             position: relative; 
             width: 100%;
             max-width: 850px; 
-            padding: 10px;
-            box-sizing: border-box;
+            margin: 0 auto;
         }
         h1 { font-size: 36px; margin-bottom: 5px; color: #00cec9; letter-spacing: 3px; }
         .credits { font-size: 14px; color: #747d8c; margin-bottom: 25px; }
@@ -296,15 +298,12 @@ const OVERALL_COMMENTS = {
 // Explicit Point Threshold Commentary Selector System
 function getCommentaryByPoints(score, isOverall = false) {
     if (!isOverall) {
-        // Individual level thresholds (0-5, 5-7, 7-8.5, 8.5-9.5, 9.5-10)
         if (score < 5.0) return INDIVIDUAL_COMMENTS.tier1[Math.floor(Math.random() * INDIVIDUAL_COMMENTS.tier1.length)];
         if (score < 7.0) return INDIVIDUAL_COMMENTS.tier2[Math.floor(Math.random() * INDIVIDUAL_COMMENTS.tier2.length)];
         if (score < 8.5) return INDIVIDUAL_COMMENTS.tier3[Math.floor(Math.random() * INDIVIDUAL_COMMENTS.tier3.length)];
         if (score < 9.5) return INDIVIDUAL_COMMENTS.tier4[Math.floor(Math.random() * INDIVIDUAL_COMMENTS.tier4.length)];
         return INDIVIDUAL_COMMENTS.tier5[Math.floor(Math.random() * INDIVIDUAL_COMMENTS.tier5.length)];
     } else {
-        // Grand Total Thresholds (35 or below, 35-40, 40-45, 45-48, 48-50)
-        // If playing Phigros, the total score matches 100 max, so we convert it back to the 50 max scale system
         let normalizedScore = (currentMode === 'phigros') ? (score / 2) : score;
 
         if (normalizedScore <= 35.0) return OVERALL_COMMENTS.tier1[Math.floor(Math.random() * OVERALL_COMMENTS.tier1.length)];
@@ -692,7 +691,7 @@ function endQuestion() {
                 <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>`;
     } else {
-        let scaledGrandScore = avg * 10.0; // Phigros mode total tracks out of 100
+        let scaledGrandScore = avg * 10.0; 
         questionScores.push(scaledGrandScore);
         rollingScoreDisplay = 0.0;
         targetFinalScore = scaledGrandScore;
@@ -853,10 +852,17 @@ function gameLoop() {
     let countdownEndTime = 4 * BEAT_DURATION;
     
     let isMobilePhone = window.innerWidth <= 1024;
+    let isLandscape = window.innerWidth > window.innerHeight;
     
     // 1. Live Interactive Gameplay Frame Handler
     if (gameState === 'TIMELINE_RUNNING') {
         let maxDurationBeats = (currentMode === 'taiko') ? 8 : 20; 
+        
+        ctx.save();
+        // If it's a smartphone on horizontal landscape mode playing Taiko, drop the view down by 1/4 of canvas height
+        if (currentMode === 'taiko' && isMobilePhone && isLandscape) {
+            ctx.translate(0, canvas.height * 0.25);
+        }
         
         if (currentMode === 'taiko') {
             let patternIDs = questions[currentQuestionIndex];
@@ -1045,6 +1051,7 @@ function gameLoop() {
         if (processedNotesCount >= totalRegisteredNotesCount && relativeTime >= (maxDurationBeats * BEAT_DURATION)) {
             endQuestion();
         }
+        ctx.restore();
         uiOverlay.innerHTML = ''; 
     }
 
@@ -1069,6 +1076,11 @@ function gameLoop() {
             }
         }
 
+        ctx.save();
+        if (currentMode === 'taiko' && isMobilePhone && isLandscape) {
+            ctx.translate(0, canvas.height * 0.25);
+        }
+
         if (currentMode === 'taiko') {
             let elapsedResultTime = (timestampNow / 1000) - resultViewStartTimestamp;
             let loopedSimulatedTime = (elapsedResultTime % (8 * BEAT_DURATION));
@@ -1077,7 +1089,6 @@ function gameLoop() {
 
         if (currentMode === 'taiko') {
             ctx.save();
-            // Apply scale reduction and alignment shift for mobile layout viewports
             if (isMobilePhone) {
                 ctx.translate(canvas.width * 0.025, canvas.height * 0.025);
                 ctx.scale(0.95, 0.95);
@@ -1149,7 +1160,7 @@ function gameLoop() {
             ctx.fillText(displayTrendString, 50, 465);
             ctx.restore();
         }
-        
+        ctx.restore();
         uiOverlay.innerHTML = ''; 
     }
 
@@ -1168,6 +1179,11 @@ function gameLoop() {
             }
         } else {
             totalScoreFinishedRising = true;
+        }
+
+        ctx.save();
+        if (currentMode === 'taiko' && isMobilePhone && isLandscape) {
+            ctx.translate(0, canvas.height * 0.25);
         }
 
         ctx.save();
@@ -1225,6 +1241,7 @@ function gameLoop() {
                 ctx.fillText("0.0", computedX, 385);
             }
         }
+        ctx.restore();
         ctx.restore();
         ctx.restore();
         uiOverlay.innerHTML = "";
