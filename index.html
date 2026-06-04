@@ -11,7 +11,7 @@
         body {
             background-color: #0c0c0e;
             color: #ffffff;
-            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Microsoft JhengHei', sans-serif;
+            font-family: "Futura", "Century Gothic", -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft JhengHei", sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -235,7 +235,7 @@
     <div id="menu">
         <h1>擊擊復擊擊</h1>
         <div class="credits">製作者: 郭覲德 林映澄</div>
-        <div class="version-tag">Version 1.03</div>
+        <div class="version-tag">Version 1.04</div>
         
         <div id="tutorial-panel">
             <h3>玩法教學 (Tutorial)</h3>
@@ -301,7 +301,7 @@ const INDIVIDUAL_COMMENTS = {
     tier1: ["海倫凱勒都比你強。", "你試了。我們注意到了。就這樣。", "我阿公都比你行。", "連一根皮毛都沒摸到。"],
     tier2: ["就這?", "中庸。字典裡最無趣的詞。", "你還好嗎?"],
     tier3: ["你抓到大概了。真的只有大概。", "還行吧。", "看來你還是有點東西的。只有一點點。"],
-    tier4: ["我們注意到你的表现了。現在開心了嗎?", "勉強能拿來炫耀。", "好吧。我承認你有點實力。"],
+    tier4: ["我們注意到你的表現了。現在開心了嗎?", "勉強能拿來炫耀。", "好吧。我承認你有點實力。"],
     tier5: ["精確到讓人作嘔。", "挺沒用的能力其實。", "近乎完美都不足以形容你。", "外星人，你被我們逮捕了。"]
 };
 
@@ -886,8 +886,9 @@ function drawModernCanvasNextButton(textString) {
     let btnW = 180, btnH = 50;
     let btnX = canvas.width - btnW - 50;
     
-    let evaluationBaselineY = getMappedY(15);
-    let btnY = evaluationBaselineY - (canvas.height * 0.04) - btnH; 
+    // Positioned exactly 1% canvas height height above the trend status baseline
+    let trendBaselineY = getMappedY(15);
+    let btnY = trendBaselineY - (canvas.height * 0.01) - btnH; 
 
     canvasNextBtnRect = { x: btnX, y: btnY, w: btnW, h: btnH };
 
@@ -909,12 +910,12 @@ function drawModernCanvasNextButton(textString) {
     ctx.shadowBlur = 0;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.font = '900 18px "Segoe UI", sans-serif';
+    ctx.font = '900 18px "Futura", "Century Gothic", "Segoe UI", sans-serif';
     ctx.fillStyle = '#0c0c0e';
     ctx.fillText(textString, btnX + (btnW / 2) - 8, btnY + (btnH / 2));
 
     ctx.fillStyle = '#0c0c0e';
-    ctx.font = '900 16px "Segoe UI"';
+    ctx.font = '900 16px "Futura", "Segoe UI"';
     ctx.fillText('→', btnX + btnW - 32, btnY + (btnH / 2));
     ctx.restore();
 }
@@ -953,7 +954,7 @@ function gameLoop() {
                     ctx.strokeStyle = '#3a3a44';
                     ctx.strokeRect(xPos, cardPanelY, imgWidth, cardPanelHeight);
                     ctx.fillStyle = '#fff';
-                    ctx.font = `14px Segoe UI`;
+                    ctx.font = `14px "Futura", "Segoe UI"`;
                     ctx.fillText(`卡片 ${imgId}.jpg`, xPos + 15, cardPanelY + (cardPanelHeight / 2));
                 }
                 if (i === currentActiveImageIndex) {
@@ -996,10 +997,10 @@ function gameLoop() {
                 ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
                 ctx.shadowBlur = 4;
                 ctx.fillStyle = '#ffb8b8';
-                ctx.font = `bold 16px Impact, Arial`;
+                ctx.font = `bold 16px "Impact", "Futura", Arial`;
                 ctx.fillText('COMBO', 110, trackBaseY - 12);
                 ctx.fillStyle = '#ffffff';
-                ctx.font = `bold 38px Impact, Arial`; 
+                ctx.font = `bold 38px "Impact", "Futura", Arial`; 
                 ctx.fillText(currentCombo, 110, trackBaseY + 25);
                 ctx.restore();
             }
@@ -1016,14 +1017,14 @@ function gameLoop() {
                             ctx.strokeStyle = '#000000';
                             ctx.lineWidth = 6;
                             
-                            // 80% sizing and 4% downward shift exclusively for phone taiko viewports
+                            // Optimized sizing and downward shifts exclusively for phone taiko viewports
                             if (mobile) {
-                                ctx.font = `900 29px "Arial Black", "Microsoft JhengHei"`;
+                                ctx.font = `900 29px "Impact", "Arial Black", "Microsoft JhengHei"`;
                                 ctx.strokeText(judgment.text, judgmentLineX, trackBaseY - 64);
                                 ctx.fillStyle = '#ffffff'; 
                                 ctx.fillText(judgment.text, judgmentLineX, trackBaseY - 64);
                             } else {
-                                ctx.font = `900 36px "Arial Black", "Microsoft JhengHei"`;
+                                ctx.font = `900 36px "Impact", "Arial Black", "Microsoft JhengHei"`;
                                 ctx.strokeText(judgment.text, judgmentLineX, trackBaseY - 85);
                                 ctx.fillStyle = '#ffffff'; 
                                 ctx.fillText(judgment.text, judgmentLineX, trackBaseY - 85);
@@ -1049,7 +1050,7 @@ function gameLoop() {
                 ctx.fillRect(i * colWidth + 4, canvas.height - 80, colWidth - 8, 25);
                 ctx.save();
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
-                ctx.font = 'bold 15px Arial';
+                ctx.font = 'bold 15px "Futura", "Century Gothic", Arial';
                 ctx.textAlign = 'center';
                 ctx.fillText(keyLabels[i], i * colWidth + (colWidth / 2), canvas.height - 30);
                 ctx.restore();
@@ -1058,7 +1059,7 @@ function gameLoop() {
                 ctx.save();
                 ctx.textAlign = 'center';
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
-                ctx.font = 'bold 55px Impact';
+                ctx.font = 'bold 55px "Impact", "Futura"';
                 ctx.fillText(currentCombo, canvas.width / 2, 120);
                 ctx.restore();
             }
@@ -1073,7 +1074,7 @@ function gameLoop() {
                             ctx.save();
                             ctx.fillStyle = 'rgba(255, 255, 255, 0.22)'; 
                             ctx.fillRect(colLeftX + 4, canvas.height - 75, colWidth - 8, 15);
-                            ctx.font = 'bold 21px Segoe UI';
+                            ctx.font = 'bold 21px "Futura", "Segoe UI"';
                             ctx.fillStyle = '#ffffff'; 
                             ctx.textAlign = 'center';
                             ctx.fillText(judgment.text, colLeftX + (colWidth / 2), canvas.height - 105);
@@ -1166,13 +1167,13 @@ function gameLoop() {
 
             ctx.save();
             ctx.fillStyle = '#a4b0be';
-            ctx.font = 'bold 24px Arial, sans-serif';
+            ctx.font = 'bold 24px "Futura", "Century Gothic", Arial, sans-serif';
             ctx.fillText(`${currentQuestionIndex + 1} / 5`, 50, upperBaselineY);
             ctx.restore();
 
             ctx.save();
             ctx.textAlign = 'right';
-            ctx.font = '900 82px Helvetica Neue, Arial, sans-serif';
+            ctx.font = '900 82px "Futura", "Helvetica Neue", Arial, sans-serif';
             ctx.fillStyle = '#ffffff';
             ctx.fillText(`${rollingScoreDisplay.toFixed(2)}`, canvas.width - 50, upperBaselineY);
             ctx.restore();
@@ -1180,7 +1181,7 @@ function gameLoop() {
             if (scoreFinishedRisingGlobal) {
                 ctx.save();
                 ctx.textAlign = 'right';
-                ctx.font = 'bold 24px Microsoft JhengHei, sans-serif';
+                ctx.font = 'bold 24px "Microsoft JhengHei", sans-serif';
                 ctx.fillStyle = '#a4b0be';
                 let commentaryTextY = getMappedY(65); 
                 ctx.fillText(currentActiveCommentary, canvas.width - 50, commentaryTextY);
@@ -1191,16 +1192,16 @@ function gameLoop() {
             ctx.save();
             ctx.textAlign = 'center';
             ctx.fillStyle = '#00cec9';
-            ctx.font = 'bold 24px Segoe UI, sans-serif';
+            ctx.font = 'bold 24px "Futura", "Segoe UI", sans-serif';
             ctx.fillText('TRACK PERFORMANCE', canvas.width / 2, 120);
             
             ctx.fillStyle = '#ffffff';
-            ctx.font = '900 74px Helvetica Neue, sans-serif';
+            ctx.font = '900 74px "Futura", "Helvetica Neue", sans-serif';
             ctx.fillText(`${rollingScoreDisplay.toFixed(2)}`, canvas.width / 2, 220);
             
             if (scoreFinishedRisingGlobal) {
                 ctx.fillStyle = '#747d8c';
-                ctx.font = 'bold 18px Microsoft JhengHei, sans-serif';
+                ctx.font = 'bold 18px "Microsoft JhengHei", sans-serif';
                 ctx.fillText(currentActiveCommentary, canvas.width / 2, 290);
             }
             ctx.restore();
@@ -1226,7 +1227,7 @@ function gameLoop() {
             ctx.fillText(displayTrendString, 50, finalEvaluationY);
             ctx.restore();
 
-            drawModernCanvasNextButton('下一步');
+            drawModernCanvasNextButton('下一題');
         }
         ctx.restore();
         uiOverlay.innerHTML = ''; 
@@ -1251,21 +1252,21 @@ function gameLoop() {
 
         ctx.save();
         ctx.textAlign = 'center';
-        ctx.font = '900 105px Helvetica Neue, Arial, sans-serif';
+        ctx.font = '900 105px "Futura", "Helvetica Neue", Arial, sans-serif';
         ctx.fillStyle = '#ffffff';
         ctx.fillText(`${rollingScoreDisplay.toFixed(2)}`, canvas.width / 2, 145);
         
         let mainTextWidth = ctx.measureText(`${rollingScoreDisplay.toFixed(2)}`).width;
         ctx.textAlign = 'left';
         ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-        ctx.font = 'bold 48px Helvetica Neue, Arial, sans-serif';
+        ctx.font = 'bold 48px "Futura", "Helvetica Neue", Arial, sans-serif';
         ctx.fillText('/50', (canvas.width / 2) + (mainTextWidth / 2) + 5, 135);
         ctx.restore();
 
         if (totalScoreFinishedRising) {
             ctx.save();
             ctx.textAlign = 'center';
-            ctx.font = 'bold 26px Microsoft JhengHei, sans-serif';
+            ctx.font = 'bold 26px "Microsoft JhengHei", sans-serif';
             ctx.fillStyle = '#ffffff';
             ctx.fillText(currentActiveCommentary, canvas.width / 2, 215);
             ctx.restore();
@@ -1284,16 +1285,16 @@ function gameLoop() {
             let computedX = matrixStartLeftX + (i * segmentSpacing);
             let scoreVal = questionScores[i] || 0;
             ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
-            ctx.font = 'bold 20px Arial, sans-serif';
+            ctx.font = 'bold 20px "Futura", Arial, sans-serif';
             ctx.fillText(`${i + 1}`, computedX, 320);
 
             if (totalScoreFinishedRising) {
                 ctx.fillStyle = '#ffffff';
-                ctx.font = 'bold 36px Arial, sans-serif';
+                ctx.font = 'bold 36px "Futura", Arial, sans-serif';
                 ctx.fillText(scoreVal.toFixed(1), computedX, 385);
             } else {
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
-                ctx.font = 'bold 36px Arial, sans-serif';
+                ctx.font = 'bold 36px "Futura", Arial, sans-serif';
                 ctx.fillText("0.0", computedX, 385);
             }
         }
