@@ -16,7 +16,7 @@
             min-height: 100vh;
             margin: 0;
             overflow-x: hidden;
-            overflow-y: auto; /* Explicitly allow global vertical scrolling */
+            overflow-y: auto; 
             user-select: none;
             padding: 20px 10px;
             box-sizing: border-box;
@@ -54,7 +54,7 @@
             background-color: #151518;
             box-shadow: 0 10px 30px rgba(0,0,0,0.7);
             border-radius: 6px;
-            overflow: visible; /* Prevents button clipping and allows clean layout expansion */
+            overflow: visible; 
         }
         
         .wrapper-taiko { aspect-ratio: 800 / 520; max-width: 800px !important; }
@@ -138,7 +138,6 @@
             transition: transform 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
         }
         
-        /* Unified Next button tracking system: Pinned 10% higher than the evaluation row base layout */
         .taiko-next-btn-placement {
             bottom: 130px; 
             right: 45px;
@@ -226,7 +225,10 @@
             body {
                 padding: 10px 5px;
             }
-            /* RESTORED: Taiko phone layout now keeps native aspect mapping matrix uniform with desktop */
+            /* Shifts entire rectangle box down by 5% on phone screens */
+            #canvas-wrapper {
+                margin-top: 5vh !important; 
+            }
             .wrapper-taiko {
                 aspect-ratio: 800 / 520 !important;
             }
@@ -494,8 +496,12 @@ let validHitsCount = 0;
 let scoreFinishedRisingGlobal = false;
 let resultViewStartTimestamp = 0;
 
+function isMobileDevice() {
+    return window.innerWidth <= 1024;
+}
+
 function checkOrientation() {
-    if (window.innerWidth > 1024) {
+    if (!isMobileDevice()) {
         guardOverlay.style.display = 'none';
         return;
     }
@@ -684,7 +690,6 @@ function endQuestion() {
         
         let nextClickAction = (currentQuestionIndex < 4) ? "nextQuestion()" : "showGrandScoreboard()";
         
-        // UNIFIED LAYOUT TRACKING: Button shares the exact same class and absolute positioning layout rules on all devices
         actionBtnContainer.innerHTML = `
             <button id="btn-next-step" class="modern-next-btn taiko-next-btn-placement" onclick="${nextClickAction}" disabled>
                 <span>下一步</span>
@@ -800,19 +805,20 @@ function getOptimizedScoreScreenTimeline() {
 
 const scoreBackgroundTimelinePool = getOptimizedScoreScreenTimeline();
 
-// Dynamic vertical positioning coordinator (UNIFIED MATRIX RESET FOR ALL SCREENS)
+// Dynamic vertical positioning coordinator (0 is bottom, 100 is top)
 function getMappedY(percentageVal) {
     if (currentMode === 'taiko') {
+        let scale = (isMobileDevice()) ? 0.8 : 1.0;
+        
         if (gameState === 'TIMELINE_RUNNING') {
-            if (percentageVal === 85) return 130;  
-            if (percentageVal === 60) return 40;   
-            if (percentageVal === 10) return 416; 
+            if (percentageVal === 85) return 130 * scale;  
+            if (percentageVal === 10) return 416 * scale; 
         } 
         else if (gameState === 'QUESTION_SCORE') {
             if (percentageVal === 80) return 104; 
-            if (percentageVal === 65) return 182; // 評語 (65% -> 182px)
-            if (percentageVal === 30) return 260; // Running track track space (30% -> 260px)
-            if (percentageVal === 15) return 442; // Evaluation string row benchmark ("稍快 / 太慢" -> 15% -> 442px)
+            if (percentageVal === 65) return 182; 
+            if (percentageVal === 30) return 260; 
+            if (percentageVal === 15) return 442; 
         }
     }
     return canvas.height - (canvas.height * (percentageVal / 100));
@@ -823,16 +829,16 @@ function gameLoop() {
     let timeNow = performance.now() / 1000;
     let relativeTime = timeNow - timelineStartTime;
     let countdownEndTime = 4 * BEAT_DURATION;
+    let scale = (currentMode === 'taiko' && isMobileDevice()) ? 0.8 : 1.0;
 
     // 1. Gameplay Frame Processing View
     if (gameState === 'TIMELINE_RUNNING') {
-        let maxDurationBeats = (currentMode === 'taiko') ? 8 : 20; 
         ctx.save();
         
         if (currentMode === 'taiko') {
             let patternIDs = questions[currentQuestionIndex];
-            let cardPanelHeight = 110;
-            let cardPanelY = 130;
+            let cardPanelHeight = 110 * scale;
+            let cardPanelY = getMappedY(85); // 85% Height Baseline
             
             ctx.fillStyle = '#1e1e24';
             ctx.fillRect(0, cardPanelY, canvas.width, cardPanelHeight);
@@ -852,22 +858,17 @@ function gameLoop() {
                     ctx.strokeStyle = '#3a3a44';
                     ctx.strokeRect(xPos, cardPanelY, imgWidth, cardPanelHeight);
                     ctx.fillStyle = '#fff';
-                    ctx.font = `14px Segoe UI`;
-                    ctx.fillText(`卡片 ${imgId}.jpg`, xPos + 15, cardPanelY + (cardPanelHeight / 2));
+                    ctx.font = `${14 * scale}px Segoe UI`;
+                    ctx.fillText(`卡片 ${imgId}.jpg`, xPos + (15 * scale), cardPanelY + (cardPanelHeight / 2));
                 }
                 if (i === currentActiveImageIndex) {
                     ctx.strokeStyle = '#00cec9';
-                    ctx.lineWidth = 4;
+                    ctx.lineWidth = 4 * scale;
                     ctx.strokeRect(xPos + 2, cardPanelY + 2, imgWidth - 4, cardPanelHeight - 4);
                 }
             }
 
-            ctx.save();
-            ctx.fillStyle = '#a4b0be';
-            ctx.font = 'bold 20px Arial, sans-serif';
-            let labelRoundY = 40;
-            ctx.fillText(`${currentQuestionIndex + 1} / 5`, 25, labelRoundY);
-            ctx.restore();
+            // REMOVED: Round counter "1 / 5" block hidden from gameplay screen per request
         }
 
         if (relativeTime < countdownEndTime) {
@@ -883,13 +884,13 @@ function gameLoop() {
         }
 
         if (currentMode === 'taiko') {
-            let judgmentLineX = 220;
-            let trackBaseY = getMappedY(10); 
-            let circleRadius = 45;
-            let barHeight = 100;
+            let judgmentLineX = 220 * scale;
+            let trackBaseY = getMappedY(10); // 10% Height Baseline
+            let circleRadius = 45 * scale;
+            let barHeight = 100 * scale;
 
             ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 4;
+            ctx.lineWidth = 4 * scale;
             ctx.beginPath(); 
             ctx.arc(judgmentLineX, trackBaseY, circleRadius, 0, Math.PI * 2); 
             ctx.stroke();
@@ -902,36 +903,36 @@ function gameLoop() {
                 ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
                 ctx.shadowBlur = 4;
                 ctx.fillStyle = '#ffb8b8';
-                ctx.font = 'bold 16px Impact, Arial';
-                ctx.fillText('COMBO', 110, trackBaseY - 12);
+                ctx.font = `bold ${16 * scale}px Impact, Arial`;
+                ctx.fillText('COMBO', 110 * scale, trackBaseY - (12 * scale));
                 ctx.fillStyle = '#ffffff';
-                ctx.font = 'bold 38px Impact, Arial'; 
-                ctx.fillText(currentCombo, 110, trackBaseY + 25);
+                ctx.font = `bold ${38 * scale}px Impact, Arial`; 
+                ctx.fillText(currentCombo, 110 * scale, trackBaseY + (25 * scale));
                 ctx.restore();
             }
             
             activeNotes.forEach(note => {
-                let xPos = judgmentLineX + ((note.targetOffset - relativeTime) * 400);
+                let xPos = judgmentLineX + ((note.targetOffset - relativeTime) * 400 * scale);
                 if (note.processed) {
                     let judgment = getJudgmentData(note.hitOffset, note.missedEntirely);
                     let displayOnset = note.hitTimestamp || note.targetOffset + WINDOW_MAX;
                     if (relativeTime <= displayOnset + 0.15) {
                         if (judgment.text !== '') {
                             ctx.save();
-                            ctx.font = '900 36px "Arial Black", "Microsoft JhengHei"';
+                            ctx.font = `900 ${36 * scale}px "Arial Black", "Microsoft JhengHei"`;
                             ctx.textAlign = 'center';
                             ctx.strokeStyle = '#000000';
-                            ctx.lineWidth = 6;
-                            ctx.strokeText(judgment.text, judgmentLineX, trackBaseY - 75);
+                            ctx.lineWidth = 6 * scale;
+                            ctx.strokeText(judgment.text, judgmentLineX, trackBaseY - (75 * scale));
                             ctx.fillStyle = '#ffffff'; 
-                            ctx.fillText(judgment.text, judgmentLineX, trackBaseY - 75);
+                            ctx.fillText(judgment.text, judgmentLineX, trackBaseY - (75 * scale));
                             ctx.restore();
                         }
                     }
                 } else {
-                    if (xPos > judgmentLineX - 40 && xPos < canvas.width + 40) {
+                    if (xPos > judgmentLineX - (40 * scale) && xPos < canvas.width + (40 * scale)) {
                         ctx.fillStyle = '#ffffff'; 
-                        ctx.beginPath(); ctx.arc(xPos, trackBaseY, 30, 0, Math.PI * 2); ctx.fill();
+                        ctx.beginPath(); ctx.arc(xPos, trackBaseY, 30 * scale, 0, Math.PI * 2); ctx.fill();
                     }
                 }
             });
@@ -1061,14 +1062,13 @@ function gameLoop() {
             ctx.save();
             let upperBaselineY = getMappedY(80); 
 
-            // Round Index text label
+            // Restored inside Score view context
             ctx.save();
             ctx.fillStyle = '#a4b0be';
             ctx.font = 'bold 24px Arial, sans-serif';
             ctx.fillText(`${currentQuestionIndex + 1} / 5`, 50, upperBaselineY);
             ctx.restore();
 
-            // Total Points text display row
             ctx.save();
             ctx.textAlign = 'right';
             ctx.font = '900 82px Helvetica Neue, Arial, sans-serif';
@@ -1076,7 +1076,6 @@ function gameLoop() {
             ctx.fillText(`${rollingScoreDisplay.toFixed(2)}`, canvas.width - 50, upperBaselineY);
             ctx.restore();
 
-            // 評語 (65% -> 182px)
             if (scoreFinishedRisingGlobal) {
                 ctx.save();
                 ctx.textAlign = 'right';
@@ -1106,7 +1105,6 @@ function gameLoop() {
             ctx.restore();
         }
 
-        // EVALUATION LAYOUT BASELINE ("稍快 / 太慢" String -> 15% -> 442px)
         if (scoreFinishedRisingGlobal && currentMode === 'taiko') {
             ctx.save();
             let displayTrendString = "";
