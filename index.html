@@ -12,11 +12,11 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: flex-start; /* Changed to allow scrolling from the top if content overflows */
+            justify-content: flex-start;
             min-height: 100vh;
             margin: 0;
             overflow-x: hidden;
-            overflow-y: auto; /* Enables scrolling on short screens/mobile */
+            overflow-y: auto;
             user-select: none;
             padding: 20px 10px;
             box-sizing: border-box;
@@ -27,15 +27,23 @@
             width: 100%;
             max-width: 850px; 
             margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
-        h1 { font-size: 36px; margin-bottom: 5px; color: #00cec9; letter-spacing: 3px; }
+        #menu {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 { font-size: 36px; margin: 10px 0 5px 0; color: #00cec9; letter-spacing: 3px; }
         .credits { font-size: 14px; color: #747d8c; margin-bottom: 25px; }
         
         .mode-container { display: flex; flex-direction: column; align-items: center; gap: 15px; margin-bottom: 20px; }
         .mode-row { display: flex; align-items: center; gap: 12px; }
         .orientation-hint { font-size: 14px; color: #a4b0be; font-weight: bold; }
         
-        /* Responsive Canvas wrapper preventing mobile overflow/scrolling */
         #canvas-wrapper {
             position: relative;
             width: 100%;
@@ -48,7 +56,6 @@
             overflow: hidden;
         }
         
-        /* Dynamic Aspect Classes based on current mode */
         .wrapper-taiko { aspect-ratio: 800 / 520; max-width: 800px !important; }
         .wrapper-phigros { aspect-ratio: 450 / 700; max-width: 450px !important; }
         
@@ -104,11 +111,11 @@
         }
         .btn-action:hover:not(:disabled) { background: #ff6b81; transform: translateY(-2px); }
         
-        /* Adjusted positioning containers to pull action buttons upwards */
         #action-btn-container {
             position: relative;
             margin-top: -10px;
             z-index: 20;
+            width: 100%;
         }
         
         .modern-next-btn {
@@ -150,6 +157,9 @@
             text-align: left;
             font-size: 14px;
             line-height: 1.6;
+            max-width: 600px;
+            width: 100%;
+            box-sizing: border-box;
         }
         #tutorial-panel h3 { color: #00cec9; margin-top: 0; }
         #tutorial-panel code { background: #0c0c0e; padding: 2px 6px; border-radius: 4px; color: #ff7f50; }
@@ -162,7 +172,6 @@
             min-height: 20px;
         }
 
-        /* Enforcer System Guard Overlays */
         #orientation-guard {
             display: none;
             position: fixed;
@@ -202,6 +211,16 @@
         }
         #orientation-guard h2 { font-size: 24px; margin: 0 0 10px 0; color: #00cec9; }
         #orientation-guard p { font-size: 15px; color: #a4b0be; margin: 0; }
+
+        /* Media Query for Phone Landscape Overrides */
+        @media screen and (max-width: 1024px) and (orientation: landscape) {
+            body {
+                padding: 5px 10px; /* Reduced vertical padding to prevent top cutoff */
+            }
+            .modern-next-btn {
+                bottom: 85px; /* Pull action button upwards to clear navigation overlays */
+            }
+        }
     </style>
 </head>
 <body>
@@ -278,7 +297,7 @@ const BEAT_PATTERNS = {
     5: [1, 1, 1, 0], 6: [1, 1, 0, 1], 7: [1, 1, 0, 0], 8: [1, 0, 0, 1]
 };
 
-// --- ARCADIC ROAST COMMENTARY TEXT CONFIGURATION POOLS ---
+// --- COMMENTARY CONFIGURATION POOLS ---
 const INDIVIDUAL_COMMENTS = {
     tier1: ["海倫凱勒都比你強。", "你試了。我們注意到了。就這樣。", "我阿公都比你行。", "連一根皮毛都沒摸到。"],
     tier2: ["就這?", "中庸。字典裡最無趣的詞。", "你還好嗎?"],
@@ -295,7 +314,6 @@ const OVERALL_COMMENTS = {
     tier5: ["精確到讓人作嘔。", "挺沒用的能力其實。", "近乎完美都不足以形容你。", "外星人，你被我們逮捕了。"]
 };
 
-// Explicit Point Threshold Commentary Selector System
 function getCommentaryByPoints(score, isOverall = false) {
     if (!isOverall) {
         if (score < 5.0) return INDIVIDUAL_COMMENTS.tier1[Math.floor(Math.random() * INDIVIDUAL_COMMENTS.tier1.length)];
@@ -479,7 +497,6 @@ let validHitsCount = 0;
 let scoreFinishedRisingGlobal = false;
 let resultViewStartTimestamp = 0;
 
-// --- DYNAMIC ENFORCER AND LAYOUT HANDLERS ---
 function checkOrientation() {
     if (window.innerWidth > 1024) {
         guardOverlay.style.display = 'none';
@@ -758,7 +775,6 @@ function handleHit(forcedColumn = null) {
     }
 }
 
-// --- DESKTOP COMPUTER MAPPING ---
 window.addEventListener('keydown', (e) => { 
     if (currentMode === 'taiko' && e.code === 'Space') {
         e.preventDefault();
@@ -773,7 +789,6 @@ window.addEventListener('keydown', (e) => {
     }
 });
 
-// --- SMART PHONE SCREEN TOUCH SYSTEM ---
 canvas.addEventListener('touchstart', (e) => {
     if (gameState !== 'TIMELINE_RUNNING') return;
     e.preventDefault(); 
@@ -819,27 +834,28 @@ function getOptimizedScoreScreenTimeline() {
 
 const scoreBackgroundTimelinePool = getOptimizedScoreScreenTimeline();
 
-function drawFadedGameplayBackground(simulatedRelativeTime) {
+function drawFadedGameplayBackground(simulatedRelativeTime, trackOffsetY) {
     ctx.save();
     let judgmentLineX = 220;
+    let trackBaseY = 320 + trackOffsetY;
     
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
     ctx.lineWidth = 4;
     ctx.beginPath(); 
-    ctx.arc(judgmentLineX, 320, 45, 0, Math.PI * 2); 
+    ctx.arc(judgmentLineX, trackBaseY, 45, 0, Math.PI * 2); 
     ctx.stroke();
     
     ctx.fillStyle = 'rgba(255,255,255,0.02)';
-    ctx.fillRect(0, 270, canvas.width, 100); 
+    ctx.fillRect(0, trackBaseY - 50, canvas.width, 100); 
     
     scoreBackgroundTimelinePool.forEach(targetOffset => {
         let targetTimeModulo = targetOffset % (8 * BEAT_DURATION);
         let xPos = judgmentLineX + ((targetTimeModulo - simulatedRelativeTime) * 400);
         if (xPos > -40 && xPos < canvas.width + 40) {
             ctx.fillStyle = 'rgba(255, 255, 255, 0.55)'; 
-            ctx.beginPath(); ctx.arc(xPos, 320, 28, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(xPos, trackBaseY, 28, 0, Math.PI * 2); ctx.fill();
             ctx.fillStyle = 'rgba(255, 56, 56, 0.65)'; 
-            ctx.beginPath(); ctx.arc(xPos, 320, 21, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(xPos, trackBaseY, 21, 0, Math.PI * 2); ctx.fill();
         }
     });
     ctx.restore();
@@ -854,52 +870,69 @@ function gameLoop() {
     let isMobilePhone = window.innerWidth <= 1024;
     let isLandscape = window.innerWidth > window.innerHeight;
     
+    // Calculate targeted Phone Landscape Shifts
+    let phoneHorizontalGameplayShiftY = (currentMode === 'taiko' && isMobilePhone && isLandscape) ? Math.floor(canvas.height * 0.33) : 0;
+    let phoneHorizontalScoreShiftY = (currentMode === 'taiko' && isMobilePhone && isLandscape) ? Math.floor(canvas.height * 0.25) : 0;
+
     // 1. Live Interactive Gameplay Frame Handler
     if (gameState === 'TIMELINE_RUNNING') {
         let maxDurationBeats = (currentMode === 'taiko') ? 8 : 20; 
         
         ctx.save();
-        // If it's a smartphone on horizontal landscape mode playing Taiko, drop the view down by 1/4 of canvas height
-        if (currentMode === 'taiko' && isMobilePhone && isLandscape) {
-            ctx.translate(0, canvas.height * 0.25);
-        }
         
         if (currentMode === 'taiko') {
             let patternIDs = questions[currentQuestionIndex];
+            
+            // Adjust card preview section layout under Phone Landscape Mode
+            let cardPanelHeight = 110;
+            let cardPanelY = 0;
+            let scaleFactorCard = 1.0;
+            
+            if (isMobilePhone && isLandscape) {
+                cardPanelHeight = 90; // Shrunk down to leave room for track line
+                cardPanelY = 15;      // Moved slightly down to prevent overlay cut-offs
+                scaleFactorCard = 0.8; // 80% Shrunk factor
+            }
+            
             ctx.fillStyle = '#1e1e24';
-            ctx.fillRect(0, 0, canvas.width, 110);
+            ctx.fillRect(0, cardPanelY, canvas.width, cardPanelHeight);
             
             let currentActiveImageIndex = -1;
             if (relativeTime >= countdownEndTime) {
                 currentActiveImageIndex = Math.floor((relativeTime - countdownEndTime) / BEAT_DURATION);
             }
             
-            let imgWidth = canvas.width / 4; 
+            let totalAvailableWidth = canvas.width * scaleFactorCard;
+            let imgWidth = totalAvailableWidth / 4; 
+            let centeringStartX = (canvas.width - totalAvailableWidth) / 2;
+            
             for (let i = 0; i < 4; i++) {
                 let imgId = patternIDs[i];
-                let xPos = i * imgWidth;
+                let xPos = centeringStartX + (i * imgWidth);
                 
                 if (images[imgId] && images[imgId].complete) {
-                    ctx.drawImage(images[imgId], xPos, 0, imgWidth, 110);
+                    ctx.drawImage(images[imgId], xPos, cardPanelY, imgWidth, cardPanelHeight);
                 } else {
                     ctx.strokeStyle = '#3a3a44';
-                    ctx.strokeRect(xPos, 0, imgWidth, 110);
+                    ctx.strokeRect(xPos, cardPanelY, imgWidth, cardPanelHeight);
                     ctx.fillStyle = '#fff';
-                    ctx.font = '14px Segoe UI';
-                    ctx.fillText(`節奏型圖卡 ${imgId}.jpg`, xPos + 40, 60);
+                    ctx.font = `${Math.floor(14 * scaleFactorCard)}px Segoe UI`;
+                    ctx.fillText(`卡片 ${imgId}.jpg`, xPos + (15 * scaleFactorCard), cardPanelY + (cardPanelHeight / 2));
                 }
                 
                 if (i === currentActiveImageIndex) {
                     ctx.strokeStyle = '#00cec9';
                     ctx.lineWidth = 4;
-                    ctx.strokeRect(xPos + 2, 2, imgWidth - 4, 106);
+                    ctx.strokeRect(xPos + 2, cardPanelY + 2, imgWidth - 4, cardPanelHeight - 4);
                 }
             }
 
+            // Lowering 1/5 Round Count Index down significantly in mobile landscape view
             ctx.save();
             ctx.fillStyle = '#a4b0be';
             ctx.font = 'bold 20px Arial, sans-serif';
-            ctx.fillText(`${currentQuestionIndex + 1} / 5`, 25, 145);
+            let labelRoundY = isMobilePhone && isLandscape ? 155 + phoneHorizontalGameplayShiftY : 145;
+            ctx.fillText(`${currentQuestionIndex + 1} / 5`, 25, labelRoundY);
             ctx.restore();
         }
 
@@ -918,15 +951,16 @@ function gameLoop() {
 
         if (currentMode === 'taiko') {
             let judgmentLineX = 220;
+            let trackBaseY = 320 + phoneHorizontalGameplayShiftY; // Apply shifted Y layout here
             
             ctx.strokeStyle = '#fff';
             ctx.lineWidth = 4;
             ctx.beginPath(); 
-            ctx.arc(judgmentLineX, 320, 45, 0, Math.PI * 2); 
+            ctx.arc(judgmentLineX, trackBaseY, 45, 0, Math.PI * 2); 
             ctx.stroke();
             
             ctx.fillStyle = 'rgba(255,255,255,0.03)';
-            ctx.fillRect(0, 270, canvas.width, 100); 
+            ctx.fillRect(0, trackBaseY - 50, canvas.width, 100); 
             
             if (currentCombo >= 2) {
                 ctx.save();
@@ -938,11 +972,11 @@ function gameLoop() {
                 
                 ctx.fillStyle = '#ffb8b8';
                 ctx.font = 'bold 16px Impact, Arial Black, sans-serif';
-                ctx.fillText('COMBO', 110, 308);
+                ctx.fillText('COMBO', 110, trackBaseY - 12);
                 
                 ctx.fillStyle = '#ffffff';
                 ctx.font = 'bold 38px Impact, Arial Black, sans-serif'; 
-                ctx.fillText(currentCombo, 110, 345);
+                ctx.fillText(currentCombo, 110, trackBaseY + 25);
                 ctx.restore();
             }
             
@@ -959,20 +993,20 @@ function gameLoop() {
                             ctx.textAlign = 'center';
                             ctx.strokeStyle = '#000000';
                             ctx.lineWidth = 6;
-                            ctx.strokeText(judgment.text, judgmentLineX, 240);
+                            ctx.strokeText(judgment.text, judgmentLineX, trackBaseY - 80);
                             ctx.fillStyle = '#ffffff'; 
-                            ctx.fillText(judgment.text, judgmentLineX, 240);
+                            ctx.fillText(judgment.text, judgmentLineX, trackBaseY - 80);
                             ctx.restore();
                         }
                     }
                     if (note.missedEntirely && xPos > 0 && xPos < canvas.width) {
                         ctx.fillStyle = 'rgba(255, 77, 77, 0.5)';
-                        ctx.beginPath(); ctx.arc(xPos, 320, 20, 0, Math.PI * 2); ctx.fill();
+                        ctx.beginPath(); ctx.arc(xPos, trackBaseY, 20, 0, Math.PI * 2); ctx.fill();
                     }
                 } else {
                     if (xPos > judgmentLineX - 40 && xPos < canvas.width + 40) {
                         ctx.fillStyle = '#ffffff'; 
-                        ctx.beginPath(); ctx.arc(xPos, 320, 30, 0, Math.PI * 2); ctx.fill();
+                        ctx.beginPath(); ctx.arc(xPos, trackBaseY, 30, 0, Math.PI * 2); ctx.fill();
                     }
                 }
             });
@@ -1077,14 +1111,10 @@ function gameLoop() {
         }
 
         ctx.save();
-        if (currentMode === 'taiko' && isMobilePhone && isLandscape) {
-            ctx.translate(0, canvas.height * 0.25);
-        }
-
         if (currentMode === 'taiko') {
             let elapsedResultTime = (timestampNow / 1000) - resultViewStartTimestamp;
             let loopedSimulatedTime = (elapsedResultTime % (8 * BEAT_DURATION));
-            drawFadedGameplayBackground(loopedSimulatedTime);
+            drawFadedGameplayBackground(loopedSimulatedTime, phoneHorizontalScoreShiftY);
         }
 
         if (currentMode === 'taiko') {
@@ -1094,17 +1124,21 @@ function gameLoop() {
                 ctx.scale(0.95, 0.95);
             }
 
+            // Lowering 1/5 Index count and shifting based on phone landscape
             ctx.save();
             ctx.fillStyle = '#a4b0be';
             ctx.font = 'bold 24px Arial, sans-serif';
-            ctx.fillText(`${currentQuestionIndex + 1} / 5`, 50, 65);
+            let scoreRoundY = isMobilePhone && isLandscape ? 65 + phoneHorizontalScoreShiftY : 65;
+            ctx.fillText(`${currentQuestionIndex + 1} / 5`, 50, scoreRoundY);
             ctx.restore();
 
+            // Lowering Total Points Score display & Commentary
             ctx.save();
             ctx.textAlign = 'right';
             ctx.font = '900 82px Helvetica Neue, Arial, sans-serif';
             ctx.fillStyle = '#ffffff';
-            ctx.fillText(`${rollingScoreDisplay.toFixed(2)}`, canvas.width - 50, 130);
+            let scoreTextY = isMobilePhone && isLandscape ? 130 + phoneHorizontalScoreShiftY : 130;
+            ctx.fillText(`${rollingScoreDisplay.toFixed(2)}`, canvas.width - 50, scoreTextY);
             ctx.restore();
 
             if (scoreFinishedRisingGlobal) {
@@ -1112,7 +1146,8 @@ function gameLoop() {
                 ctx.textAlign = 'right';
                 ctx.font = 'bold 24px Microsoft JhengHei, sans-serif';
                 ctx.fillStyle = '#a4b0be';
-                ctx.fillText(currentActiveCommentary, canvas.width - 50, 185);
+                let commentaryTextY = isMobilePhone && isLandscape ? 185 + phoneHorizontalScoreShiftY : 185;
+                ctx.fillText(currentActiveCommentary, canvas.width - 50, commentaryTextY);
                 ctx.restore();
             }
             ctx.restore();
@@ -1135,6 +1170,7 @@ function gameLoop() {
             ctx.restore();
         }
 
+        // Lowering and scaling accuracy trend evaluation text ("稍慢") to 80% size
         if (scoreFinishedRisingGlobal && currentMode === 'taiko') {
             ctx.save();
             if (isMobilePhone) {
@@ -1156,8 +1192,14 @@ function gameLoop() {
             }
 
             ctx.fillStyle = "#ffffff";
-            ctx.font = '900 68px "Microsoft JhengHei", Arial, sans-serif';
-            ctx.fillText(displayTrendString, 50, 465);
+            
+            if (isMobilePhone && isLandscape) {
+                ctx.font = '900 54px "Microsoft JhengHei", Arial, sans-serif'; // Shrunk factor applied (~80% of 68px)
+                ctx.fillText(displayTrendString, 50, 435 + phoneHorizontalScoreShiftY); // Pushed down + offset
+            } else {
+                ctx.font = '900 68px "Microsoft JhengHei", Arial, sans-serif';
+                ctx.fillText(displayTrendString, 50, 465);
+            }
             ctx.restore();
         }
         ctx.restore();
@@ -1182,6 +1224,7 @@ function gameLoop() {
         }
 
         ctx.save();
+        // Lowering down by 1/4 layout height under phone landscape orientation mode
         if (currentMode === 'taiko' && isMobilePhone && isLandscape) {
             ctx.translate(0, canvas.height * 0.25);
         }
