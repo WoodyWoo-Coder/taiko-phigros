@@ -102,9 +102,16 @@
         }
         .btn-action:hover:not(:disabled) { background: #ff6b81; transform: translateY(-2px); }
         
+        /* Adjusted positioning containers to pull action buttons upwards */
+        #action-btn-container {
+            position: relative;
+            margin-top: -10px;
+            z-index: 20;
+        }
+        
         .modern-next-btn {
             position: absolute;
-            bottom: 40px;
+            bottom: 55px;
             right: 45px;
             background: #ffffff;
             color: #0c0c0e;
@@ -286,14 +293,26 @@ const OVERALL_COMMENTS = {
     tier5: ["精確到讓人作嘔。", "挺沒用的能力其實。", "近乎完美都不足以形容你。", "外星人，你被我們逮捕了。"]
 };
 
-function getRandomComment(score, isOverall = false, maxPossible = 10.0) {
-    const pool = isOverall ? OVERALL_COMMENTS : INDIVIDUAL_COMMENTS;
-    let ratio = score / maxPossible;
-    if (ratio < 0.35) return pool.tier1[Math.floor(Math.random() * pool.tier1.length)];
-    if (ratio < 0.55) return pool.tier2[Math.floor(Math.random() * pool.tier2.length)];
-    if (ratio < 0.75) return pool.tier3[Math.floor(Math.random() * pool.tier3.length)];
-    if (ratio < 0.90) return pool.tier4[Math.floor(Math.random() * pool.tier4.length)];
-    return pool.tier5[Math.floor(Math.random() * pool.tier5.length)];
+// Explicit Point Threshold Commentary Selector System
+function getCommentaryByPoints(score, isOverall = false) {
+    if (!isOverall) {
+        // Individual level thresholds (0-5, 5-7, 7-8.5, 8.5-9.5, 9.5-10)
+        if (score < 5.0) return INDIVIDUAL_COMMENTS.tier1[Math.floor(Math.random() * INDIVIDUAL_COMMENTS.tier1.length)];
+        if (score < 7.0) return INDIVIDUAL_COMMENTS.tier2[Math.floor(Math.random() * INDIVIDUAL_COMMENTS.tier2.length)];
+        if (score < 8.5) return INDIVIDUAL_COMMENTS.tier3[Math.floor(Math.random() * INDIVIDUAL_COMMENTS.tier3.length)];
+        if (score < 9.5) return INDIVIDUAL_COMMENTS.tier4[Math.floor(Math.random() * INDIVIDUAL_COMMENTS.tier4.length)];
+        return INDIVIDUAL_COMMENTS.tier5[Math.floor(Math.random() * INDIVIDUAL_COMMENTS.tier5.length)];
+    } else {
+        // Grand Total Thresholds (35 or below, 35-40, 40-45, 45-48, 48-50)
+        // If playing Phigros, the total score matches 100 max, so we convert it back to the 50 max scale system
+        let normalizedScore = (currentMode === 'phigros') ? (score / 2) : score;
+
+        if (normalizedScore <= 35.0) return OVERALL_COMMENTS.tier1[Math.floor(Math.random() * OVERALL_COMMENTS.tier1.length)];
+        if (normalizedScore <= 40.0) return OVERALL_COMMENTS.tier2[Math.floor(Math.random() * OVERALL_COMMENTS.tier2.length)];
+        if (normalizedScore <= 45.0) return OVERALL_COMMENTS.tier3[Math.floor(Math.random() * OVERALL_COMMENTS.tier3.length)];
+        if (normalizedScore <= 48.0) return OVERALL_COMMENTS.tier4[Math.floor(Math.random() * OVERALL_COMMENTS.tier4.length)];
+        return OVERALL_COMMENTS.tier5[Math.floor(Math.random() * OVERALL_COMMENTS.tier5.length)];
+    }
 }
 
 // --- AUDIO SYNTHESIS & FILE LOADING SYSTEM ---
@@ -463,7 +482,6 @@ let resultViewStartTimestamp = 0;
 
 // --- DYNAMIC ENFORCER AND LAYOUT HANDLERS ---
 function checkOrientation() {
-    // Only engage enforcer screen overlays if width matches standard smart hardware profiles
     if (window.innerWidth > 1024) {
         guardOverlay.style.display = 'none';
         return;
@@ -562,7 +580,6 @@ function generateSession() {
             questions.push(patternCombination);
         }
     } else {
-        // Phigros Single continuous Round: Generates 16 numbers from 1 to 6 representing beats
         let phigrosTrackBeats = [];
         for (let i = 0; i < 16; i++) {
             phigrosTrackBeats.push(Math.floor(Math.random() * 6) + 1);
@@ -626,7 +643,6 @@ function buildTimelineForQuestion() {
             }
         }
     } else {
-        // Phigros Continuous Track Deployment: Map 16 dynamic sequence elements linearly
         let trackBeatsArray = questions[0]; 
         trackBeatsArray.forEach((patternNum, beatIdx) => {
             let subBeatMask = BEAT_PATTERNS[patternNum] || [1, 0, 0, 0];
@@ -667,7 +683,7 @@ function endQuestion() {
         questionScores.push(avg);
         rollingScoreDisplay = 0.0;
         targetFinalScore = avg;
-        currentActiveCommentary = getRandomComment(avg, false, 10.0);
+        currentActiveCommentary = getCommentaryByPoints(avg, false);
         
         let nextClickAction = (currentQuestionIndex < 4) ? "nextQuestion()" : "showGrandScoreboard()";
         actionBtnContainer.innerHTML = `
@@ -676,14 +692,13 @@ function endQuestion() {
                 <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>`;
     } else {
-        // Phigros direct scale mapping to a grand total of 100 points
-        let scaledGrandScore = avg * 10.0; 
+        let scaledGrandScore = avg * 10.0; // Phigros mode total tracks out of 100
         questionScores.push(scaledGrandScore);
         rollingScoreDisplay = 0.0;
         targetFinalScore = scaledGrandScore;
-        currentActiveCommentary = getRandomComment(scaledGrandScore, true, 100.0);
+        currentActiveCommentary = getCommentaryByPoints(scaledGrandScore, true);
         
-        actionBtnContainer.innerHTML = `<button id="btn-next-step" class="btn-action" style="margin-top:15px;" onclick="location.reload()" disabled>再玩一次</button>`;
+        actionBtnContainer.innerHTML = `<button id="btn-next-step" class="btn-action" style="margin-top: 10px;" onclick="location.reload()" disabled>再玩一次</button>`;
     }
     
     lastTickTime = performance.now();
@@ -699,9 +714,9 @@ function showGrandScoreboard() {
     rollingScoreDisplay = 0.0;
     targetFinalScore = questionScores.reduce((a, b) => a + b, 0);
     lastTickTime = performance.now();
-    currentActiveCommentary = getRandomComment(targetFinalScore, true, 50.0);
+    currentActiveCommentary = getCommentaryByPoints(targetFinalScore, true);
     
-    actionBtnContainer.innerHTML = `<button class="btn-action" style="margin-top:15px;" onclick="location.reload()">再玩一次</button>`;
+    actionBtnContainer.innerHTML = `<button class="btn-action" style="margin-top: 10px;" onclick="location.reload()">再玩一次</button>`;
 }
 
 function handleHit(forcedColumn = null) {
@@ -836,6 +851,8 @@ function gameLoop() {
     let timeNow = performance.now() / 1000;
     let relativeTime = timeNow - timelineStartTime;
     let countdownEndTime = 4 * BEAT_DURATION;
+    
+    let isMobilePhone = window.innerWidth <= 1024;
     
     // 1. Live Interactive Gameplay Frame Handler
     if (gameState === 'TIMELINE_RUNNING') {
@@ -1060,6 +1077,13 @@ function gameLoop() {
 
         if (currentMode === 'taiko') {
             ctx.save();
+            // Apply scale reduction and alignment shift for mobile layout viewports
+            if (isMobilePhone) {
+                ctx.translate(canvas.width * 0.025, canvas.height * 0.025);
+                ctx.scale(0.95, 0.95);
+            }
+
+            ctx.save();
             ctx.fillStyle = '#a4b0be';
             ctx.font = 'bold 24px Arial, sans-serif';
             ctx.fillText(`${currentQuestionIndex + 1} / 5`, 50, 65);
@@ -1072,14 +1096,16 @@ function gameLoop() {
             ctx.fillText(`${rollingScoreDisplay.toFixed(2)}`, canvas.width - 50, 130);
             ctx.restore();
 
-            ctx.save();
-            ctx.textAlign = 'right';
-            ctx.font = 'bold 24px Microsoft JhengHei, sans-serif';
-            ctx.fillStyle = '#a4b0be';
-            ctx.fillText(currentActiveCommentary, canvas.width - 50, 185);
+            if (scoreFinishedRisingGlobal) {
+                ctx.save();
+                ctx.textAlign = 'right';
+                ctx.font = 'bold 24px Microsoft JhengHei, sans-serif';
+                ctx.fillStyle = '#a4b0be';
+                ctx.fillText(currentActiveCommentary, canvas.width - 50, 185);
+                ctx.restore();
+            }
             ctx.restore();
         } else {
-            // Phigros Vertical Screen Space Alignment Architecture
             ctx.save();
             ctx.textAlign = 'center';
             ctx.fillStyle = '#00cec9';
@@ -1100,6 +1126,10 @@ function gameLoop() {
 
         if (scoreFinishedRisingGlobal && currentMode === 'taiko') {
             ctx.save();
+            if (isMobilePhone) {
+                ctx.translate(canvas.width * 0.025, canvas.height * 0.025);
+                ctx.scale(0.95, 0.95);
+            }
             let displayTrendString = "";
             
             if (validHitsCount > 0) {
@@ -1138,6 +1168,12 @@ function gameLoop() {
             }
         } else {
             totalScoreFinishedRising = true;
+        }
+
+        ctx.save();
+        if (isMobilePhone) {
+            ctx.translate(canvas.width * 0.025, canvas.height * 0.025);
+            ctx.scale(0.95, 0.95);
         }
 
         ctx.save();
@@ -1189,6 +1225,7 @@ function gameLoop() {
                 ctx.fillText("0.0", computedX, 385);
             }
         }
+        ctx.restore();
         ctx.restore();
         uiOverlay.innerHTML = "";
     }
