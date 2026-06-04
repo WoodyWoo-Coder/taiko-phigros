@@ -16,10 +16,11 @@
             min-height: 100vh;
             margin: 0;
             overflow-x: hidden;
-            overflow-y: auto;
+            overflow-y: auto; /* Explicitly allow global vertical scrolling */
             user-select: none;
             padding: 20px 10px;
             box-sizing: border-box;
+            -webkit-overflow-scrolling: touch;
         }
         #game-container { 
             text-align: center; 
@@ -53,7 +54,7 @@
             background-color: #151518;
             box-shadow: 0 10px 30px rgba(0,0,0,0.7);
             border-radius: 6px;
-            overflow: hidden;
+            overflow: visible; /* Prevents button clipping and allows clean layout expansion */
         }
         
         .wrapper-taiko { aspect-ratio: 800 / 520; max-width: 800px !important; }
@@ -137,8 +138,9 @@
             transition: transform 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
         }
         
-        .taiko-desktop-next-btn {
-            bottom: 78px;
+        /* Unified Next button tracking system: Pinned 10% higher than the evaluation row base layout */
+        .taiko-next-btn-placement {
+            bottom: 130px; 
             right: 45px;
         }
         
@@ -224,17 +226,16 @@
             body {
                 padding: 10px 5px;
             }
-            .phone-taiko-layout-mod {
-                height: calc(520px * 1.3) !important; 
-                aspect-ratio: auto !important;
-                margin-top: 10px !important; 
+            /* RESTORED: Taiko phone layout now keeps native aspect mapping matrix uniform with desktop */
+            .wrapper-taiko {
+                aspect-ratio: 800 / 520 !important;
             }
             .wrapper-phigros { 
                 aspect-ratio: 450 / 680 !important; 
             }
-            .taiko-phone-next-btn-placement {
-                bottom: 105px !important;
-                right: 35px !important;
+            .taiko-next-btn-placement {
+                bottom: 130px !important;
+                right: 30px !important;
             }
             .phigros-mobile-btn {
                 margin-top: -5px !important;
@@ -533,9 +534,6 @@ function selectMode(mode) {
         btnPhigros.classList.remove('selected');
         canvasWrapper.className = '';
         canvasWrapper.classList.add('wrapper-taiko');
-        if (window.innerWidth <= 1024) {
-            canvasWrapper.classList.add('phone-taiko-layout-mod');
-        }
         canvas.width = 800;
         canvas.height = 520;
     } else {
@@ -560,10 +558,6 @@ function startGame() {
     if (!currentMode || !audioLoaded) return;
     menu.style.display = 'none';
     canvasWrapper.style.display = 'block';
-    if (currentMode === 'taiko' && window.innerWidth <= 1024) {
-        canvasWrapper.classList.add('phone-taiko-layout-mod');
-        canvas.height = 520 * 1.3; 
-    }
     currentCombo = 0; 
     generateSession();
     buildTimelineForQuestion();
@@ -689,10 +683,10 @@ function endQuestion() {
         currentActiveCommentary = getCommentaryByPoints(avg, false);
         
         let nextClickAction = (currentQuestionIndex < 4) ? "nextQuestion()" : "showGrandScoreboard()";
-        let btnClasses = (window.innerWidth <= 1024) ? "modern-next-btn taiko-phone-next-btn-placement" : "modern-next-btn taiko-desktop-next-btn";
         
+        // UNIFIED LAYOUT TRACKING: Button shares the exact same class and absolute positioning layout rules on all devices
         actionBtnContainer.innerHTML = `
-            <button id="btn-next-step" class="${btnClasses}" onclick="${nextClickAction}" disabled>
+            <button id="btn-next-step" class="modern-next-btn taiko-next-btn-placement" onclick="${nextClickAction}" disabled>
                 <span>下一步</span>
                 <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>`;
@@ -806,37 +800,21 @@ function getOptimizedScoreScreenTimeline() {
 
 const scoreBackgroundTimelinePool = getOptimizedScoreScreenTimeline();
 
-// Dynamic vertical positioning coordinator (SOLATED DESKTOP MATRIX)
+// Dynamic vertical positioning coordinator (UNIFIED MATRIX RESET FOR ALL SCREENS)
 function getMappedY(percentageVal) {
-    let isMobilePhone = window.innerWidth <= 1024;
-    
-    // Mobile Phone Override Layer (Left untouched)
-    if (currentMode === 'taiko' && isMobilePhone) {
-        return canvas.height - (canvas.height * (percentageVal / 100));
-    }
-    
-    // COMPUTER LAYOUT MATRIX (CALIBRATED)
-    if (currentMode === 'taiko' && !isMobilePhone) {
+    if (currentMode === 'taiko') {
         if (gameState === 'TIMELINE_RUNNING') {
             if (percentageVal === 85) return 130;  
             if (percentageVal === 60) return 40;   
-            if (percentageVal === 10) return 416; // Shifted dynamically down 10% to sync with gameplay loop track repositioning 
+            if (percentageVal === 10) return 416; 
         } 
         else if (gameState === 'QUESTION_SCORE') {
-            // Upper baseline layout row row anchors
             if (percentageVal === 80) return 104; 
-            
-            // 評語 SHIFTED UP 5%: Moved up from 60% mapping (208px) to 65% mapping (182px)
-            if (percentageVal === 65) return 182;
-
-            // Taiko track background runner SHIFTED DOWN 10%: Moved from 40% mapping (208px) down to 30% mapping (260px)
-            if (percentageVal === 30) return 260;
-
-            // 下一步 Action Row Baseline
-            if (percentageVal === 15) return 442;
+            if (percentageVal === 65) return 182; // 評語 (65% -> 182px)
+            if (percentageVal === 30) return 260; // Running track track space (30% -> 260px)
+            if (percentageVal === 15) return 442; // Evaluation string row benchmark ("稍快 / 太慢" -> 15% -> 442px)
         }
     }
-    
     return canvas.height - (canvas.height * (percentageVal / 100));
 }
 
@@ -845,8 +823,6 @@ function gameLoop() {
     let timeNow = performance.now() / 1000;
     let relativeTime = timeNow - timelineStartTime;
     let countdownEndTime = 4 * BEAT_DURATION;
-    
-    let isMobilePhone = window.innerWidth <= 1024;
 
     // 1. Gameplay Frame Processing View
     if (gameState === 'TIMELINE_RUNNING') {
@@ -855,9 +831,8 @@ function gameLoop() {
         
         if (currentMode === 'taiko') {
             let patternIDs = questions[currentQuestionIndex];
-            
-            let cardPanelHeight = isMobilePhone ? 110 * 1.3 : 110;
-            let cardPanelY = (currentMode === 'taiko' && isMobilePhone) ? (getMappedY(85) - (cardPanelHeight / 2)) : 130;
+            let cardPanelHeight = 110;
+            let cardPanelY = 130;
             
             ctx.fillStyle = '#1e1e24';
             ctx.fillRect(0, cardPanelY, canvas.width, cardPanelHeight);
@@ -877,20 +852,20 @@ function gameLoop() {
                     ctx.strokeStyle = '#3a3a44';
                     ctx.strokeRect(xPos, cardPanelY, imgWidth, cardPanelHeight);
                     ctx.fillStyle = '#fff';
-                    ctx.font = isMobilePhone ? `bold ${14 * 1.3}px Segoe UI` : `14px Segoe UI`;
+                    ctx.font = `14px Segoe UI`;
                     ctx.fillText(`卡片 ${imgId}.jpg`, xPos + 15, cardPanelY + (cardPanelHeight / 2));
                 }
                 if (i === currentActiveImageIndex) {
                     ctx.strokeStyle = '#00cec9';
-                    ctx.lineWidth = isMobilePhone ? 4 * 1.3 : 4;
+                    ctx.lineWidth = 4;
                     ctx.strokeRect(xPos + 2, cardPanelY + 2, imgWidth - 4, cardPanelHeight - 4);
                 }
             }
 
             ctx.save();
             ctx.fillStyle = '#a4b0be';
-            ctx.font = isMobilePhone ? `bold ${20 * 1.3}px Arial` : 'bold 20px Arial, sans-serif';
-            let labelRoundY = (currentMode === 'taiko' && isMobilePhone) ? getMappedY(60) : 40;
+            ctx.font = 'bold 20px Arial, sans-serif';
+            let labelRoundY = 40;
             ctx.fillText(`${currentQuestionIndex + 1} / 5`, 25, labelRoundY);
             ctx.restore();
         }
@@ -909,13 +884,12 @@ function gameLoop() {
 
         if (currentMode === 'taiko') {
             let judgmentLineX = 220;
-            // TAIKO TRACK GAMEPLAY LOOP SHIFT DOWN 10%: Tied to index percentage mapping matrix row 10 (416px on desktop)
-            let trackBaseY = (currentMode === 'taiko' && isMobilePhone) ? getMappedY(35) : getMappedY(10); 
-            let circleRadius = isMobilePhone ? 45 * 1.3 : 45;
-            let barHeight = isMobilePhone ? 100 * 1.3 : 100;
+            let trackBaseY = getMappedY(10); 
+            let circleRadius = 45;
+            let barHeight = 100;
 
             ctx.strokeStyle = '#fff';
-            ctx.lineWidth = isMobilePhone ? 4 * 1.3 : 4;
+            ctx.lineWidth = 4;
             ctx.beginPath(); 
             ctx.arc(judgmentLineX, trackBaseY, circleRadius, 0, Math.PI * 2); 
             ctx.stroke();
@@ -928,11 +902,11 @@ function gameLoop() {
                 ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
                 ctx.shadowBlur = 4;
                 ctx.fillStyle = '#ffb8b8';
-                ctx.font = isMobilePhone ? `bold ${16 * 1.3}px Impact` : 'bold 16px Impact, Arial';
-                ctx.fillText('COMBO', 110, trackBaseY - (isMobilePhone ? 12 * 1.3 : 12));
+                ctx.font = 'bold 16px Impact, Arial';
+                ctx.fillText('COMBO', 110, trackBaseY - 12);
                 ctx.fillStyle = '#ffffff';
-                ctx.font = isMobilePhone ? `bold ${38 * 1.3}px Impact` : 'bold 38px Impact, Arial'; 
-                ctx.fillText(currentCombo, 110, trackBaseY + (isMobilePhone ? 25 * 1.2 : 25));
+                ctx.font = 'bold 38px Impact, Arial'; 
+                ctx.fillText(currentCombo, 110, trackBaseY + 25);
                 ctx.restore();
             }
             
@@ -944,21 +918,20 @@ function gameLoop() {
                     if (relativeTime <= displayOnset + 0.15) {
                         if (judgment.text !== '') {
                             ctx.save();
-                            ctx.font = isMobilePhone ? `900 ${36 * 1.3}px "Arial Black"` : '900 36px "Arial Black", "Microsoft JhengHei"';
+                            ctx.font = '900 36px "Arial Black", "Microsoft JhengHei"';
                             ctx.textAlign = 'center';
                             ctx.strokeStyle = '#000000';
-                            ctx.lineWidth = isMobilePhone ? 6 * 1.3 : 6;
-                            // FIXED ANCHORPOINT: Accuracy rating text is now centered perfectly right over the strike track 
-                            ctx.strokeText(judgment.text, judgmentLineX, trackBaseY - (isMobilePhone ? 80 * 1.3 : 75));
+                            ctx.lineWidth = 6;
+                            ctx.strokeText(judgment.text, judgmentLineX, trackBaseY - 75);
                             ctx.fillStyle = '#ffffff'; 
-                            ctx.fillText(judgment.text, judgmentLineX, trackBaseY - (isMobilePhone ? 80 * 1.3 : 75));
+                            ctx.fillText(judgment.text, judgmentLineX, trackBaseY - 75);
                             ctx.restore();
                         }
                     }
                 } else {
                     if (xPos > judgmentLineX - 40 && xPos < canvas.width + 40) {
                         ctx.fillStyle = '#ffffff'; 
-                        ctx.beginPath(); ctx.arc(xPos, trackBaseY, isMobilePhone ? 30 * 1.3 : 30, 0, Math.PI * 2); ctx.fill();
+                        ctx.beginPath(); ctx.arc(xPos, trackBaseY, 30, 0, Math.PI * 2); ctx.fill();
                     }
                 }
             });
@@ -1025,7 +998,7 @@ function gameLoop() {
             if (note.processed) processedNotesCount++;
         });
         
-        if (processedNotesCount >= totalRegisteredNotesCount && relativeTime >= (maxDurationBeats * BEAT_DURATION)) {
+        if (processedNotesCount >= totalRegisteredNotesCount && relativeTime >= (8 * BEAT_DURATION)) {
             endQuestion();
         }
         ctx.restore();
@@ -1058,18 +1031,15 @@ function gameLoop() {
             
             ctx.save();
             let judgmentLineX = 220;
-            
-            // TAIKO TRACK DOWN AN ADDITIONAL 10%: Rendered at index percentage mapping matrix 30% (260px)
-            let trackBaseY = (isMobilePhone) ? getMappedY(45) : getMappedY(30); 
-            
-            let barHeight = isMobilePhone ? 100 * 1.3 : 100;
-            let circleRadius = isMobilePhone ? 28 * 1.3 : 28;
-            let innerRadius = isMobilePhone ? 21 * 1.3 : 21;
+            let trackBaseY = getMappedY(30); 
+            let barHeight = 100;
+            let circleRadius = 28;
+            let innerRadius = 21;
 
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
-            ctx.lineWidth = isMobilePhone ? 4 * 1.3 : 4;
+            ctx.lineWidth = 4;
             ctx.beginPath(); 
-            ctx.arc(judgmentLineX, trackBaseY, isMobilePhone ? 45 * 1.3 : 45, 0, Math.PI * 2); 
+            ctx.arc(judgmentLineX, trackBaseY, 45, 0, Math.PI * 2); 
             ctx.stroke();
             ctx.fillStyle = 'rgba(255,255,255,0.02)';
             ctx.fillRect(0, trackBaseY - (barHeight / 2), canvas.width, barHeight); 
@@ -1094,25 +1064,25 @@ function gameLoop() {
             // Round Index text label
             ctx.save();
             ctx.fillStyle = '#a4b0be';
-            ctx.font = isMobilePhone ? `bold ${24 * 1.3}px Arial` : 'bold 24px Arial, sans-serif';
+            ctx.font = 'bold 24px Arial, sans-serif';
             ctx.fillText(`${currentQuestionIndex + 1} / 5`, 50, upperBaselineY);
             ctx.restore();
 
             // Total Points text display row
             ctx.save();
             ctx.textAlign = 'right';
-            ctx.font = isMobilePhone ? `900 ${82 * 1.2}px Helvetica Neue` : '900 82px Helvetica Neue, Arial, sans-serif';
+            ctx.font = '900 82px Helvetica Neue, Arial, sans-serif';
             ctx.fillStyle = '#ffffff';
             ctx.fillText(`${rollingScoreDisplay.toFixed(2)}`, canvas.width - 50, upperBaselineY);
             ctx.restore();
 
-            // 評語 COMMENTARY MATRIX MOVED UP 5%: Placed at index percentage mapping row 65% (182px)
+            // 評語 (65% -> 182px)
             if (scoreFinishedRisingGlobal) {
                 ctx.save();
                 ctx.textAlign = 'right';
-                ctx.font = isMobilePhone ? `bold ${24 * 1.3}px "Microsoft JhengHei"` : 'bold 24px Microsoft JhengHei, sans-serif';
+                ctx.font = 'bold 24px Microsoft JhengHei, sans-serif';
                 ctx.fillStyle = '#a4b0be';
-                let commentaryTextY = (isMobilePhone) ? getMappedY(65) : getMappedY(65); 
+                let commentaryTextY = getMappedY(65); 
                 ctx.fillText(currentActiveCommentary, canvas.width - 50, commentaryTextY);
                 ctx.restore();
             }
@@ -1136,7 +1106,7 @@ function gameLoop() {
             ctx.restore();
         }
 
-        // EVALUATION LAYOUT BASELINE: Anchored cleanly to 15% / 442px
+        // EVALUATION LAYOUT BASELINE ("稍快 / 太慢" String -> 15% -> 442px)
         if (scoreFinishedRisingGlobal && currentMode === 'taiko') {
             ctx.save();
             let displayTrendString = "";
@@ -1152,9 +1122,8 @@ function gameLoop() {
             }
 
             ctx.fillStyle = "#ffffff";
-            ctx.font = isMobilePhone ? `900 ${54 * 1.3}px "Microsoft JhengHei"` : '900 54px "Microsoft JhengHei", Arial, sans-serif'; 
-            
-            let finalEvaluationY = (isMobilePhone) ? getMappedY(15) : getMappedY(15);
+            ctx.font = '900 54px "Microsoft JhengHei", Arial, sans-serif'; 
+            let finalEvaluationY = getMappedY(15);
             ctx.fillText(displayTrendString, 50, finalEvaluationY);
             ctx.restore();
         }
