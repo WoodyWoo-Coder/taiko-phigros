@@ -99,7 +99,6 @@
         }
         
         .wrapper-taiko { aspect-ratio: 800 / 520; max-width: 800px !important; }
-        /* Adjusted height perspective profile specifically optimized for desktop Phigros viewports */
         .wrapper-phigros { aspect-ratio: 450 / 580; max-width: 450px !important; }
         
         canvas {
@@ -247,7 +246,6 @@
                 max-width: 800px !important;
             }
             .wrapper-phigros { 
-                /* Mobile devices preserve standard scale profile to preserve thumb targeting area */
                 aspect-ratio: 450 / 680 !important; 
                 max-width: 94vw !important;
             }
@@ -275,7 +273,7 @@
     <div id="menu">
         <h1>擊擊復擊擊</h1>
         <div class="credits">製作者: 郭覲德 林映澄</div>
-        <div class="version-tag">Version 1.13</div>
+        <div class="version-tag">Version 1.14</div>
         
         <div id="tutorial-panel">
             <h3>玩法教學 (Tutorial)</h3>
@@ -297,6 +295,7 @@
             </div>
         </div>
 
+        <!-- Song Choice Panels for Phigros Mode -->
         <div id="song-selector">
             <div class="song-card unlocked" onclick="selectSong(1)">
                 <div class="song-info">
@@ -432,20 +431,31 @@ const OVERALL_COMMENTS = {
     tier5: ["精確到讓人作嘔。", "挺沒用的能力其實。", "近乎完美都不足以形容你。", "外星人，你被我們逮捕了。"]
 };
 
+// Updated evaluation tier algorithm brackets per specifications
 function getCommentaryByPoints(score, isOverall = false) {
     if (!isOverall) {
+        // Taiko mode INDIVIDUAL SCORE brackets
         if (score < 5.0) return INDIVIDUAL_COMMENTS.tier1[Math.floor(Math.random() * INDIVIDUAL_COMMENTS.tier1.length)];
         if (score < 7.0) return INDIVIDUAL_COMMENTS.tier2[Math.floor(Math.random() * INDIVIDUAL_COMMENTS.tier2.length)];
         if (score < 8.5) return INDIVIDUAL_COMMENTS.tier3[Math.floor(Math.random() * INDIVIDUAL_COMMENTS.tier3.length)];
         if (score < 9.5) return INDIVIDUAL_COMMENTS.tier4[Math.floor(Math.random() * INDIVIDUAL_COMMENTS.tier4.length)];
         return INDIVIDUAL_COMMENTS.tier5[Math.floor(Math.random() * INDIVIDUAL_COMMENTS.tier5.length)];
     } else {
-        let normalizedScore = (currentMode === 'phigros') ? (score / 2) : score;
-        if (normalizedScore <= 35.0) return OVERALL_COMMENTS.tier1[Math.floor(Math.random() * OVERALL_COMMENTS.tier1.length)];
-        if (normalizedScore <= 40.0) return OVERALL_COMMENTS.tier2[Math.floor(Math.random() * OVERALL_COMMENTS.tier2.length)];
-        if (normalizedScore <= 45.0) return OVERALL_COMMENTS.tier3[Math.floor(Math.random() * OVERALL_COMMENTS.tier3.length)];
-        if (normalizedScore <= 48.0) return OVERALL_COMMENTS.tier4[Math.floor(Math.random() * OVERALL_COMMENTS.tier4.length)];
-        return OVERALL_COMMENTS.tier5[Math.floor(Math.random() * OVERALL_COMMENTS.tier5.length)];
+        if (currentMode === 'taiko') {
+            // Taiko mode GRAND TOTAL (0-50) brackets
+            if (score <= 35.0) return OVERALL_COMMENTS.tier1[Math.floor(Math.random() * OVERALL_COMMENTS.tier1.length)];
+            if (score <= 40.0) return OVERALL_COMMENTS.tier2[Math.floor(Math.random() * OVERALL_COMMENTS.tier2.length)];
+            if (score <= 45.0) return OVERALL_COMMENTS.tier3[Math.floor(Math.random() * OVERALL_COMMENTS.tier3.length)];
+            if (score <= 48.0) return OVERALL_COMMENTS.tier4[Math.floor(Math.random() * OVERALL_COMMENTS.tier4.length)];
+            return OVERALL_COMMENTS.tier5[Math.floor(Math.random() * OVERALL_COMMENTS.tier5.length)];
+        } else {
+            // Phigros mode TOTAL (0-100) brackets
+            if (score <= 70.0) return OVERALL_COMMENTS.tier1[Math.floor(Math.random() * OVERALL_COMMENTS.tier1.length)];
+            if (score <= 80.0) return OVERALL_COMMENTS.tier2[Math.floor(Math.random() * OVERALL_COMMENTS.tier2.length)];
+            if (score <= 90.0) return OVERALL_COMMENTS.tier3[Math.floor(Math.random() * OVERALL_COMMENTS.tier3.length)];
+            if (score <= 96.0) return OVERALL_COMMENTS.tier4[Math.floor(Math.random() * OVERALL_COMMENTS.tier4.length)];
+            return OVERALL_COMMENTS.tier5[Math.floor(Math.random() * OVERALL_COMMENTS.tier5.length)];
+        }
     }
 }
 
@@ -477,7 +487,6 @@ async function loadDrumSounds() {
     audioStatusDiv.innerText = '⏳ 正在為您加載音遊打擊樂器組與背景音樂...';
     
     try {
-        // Load Instrument Samples
         const promises = Object.keys(DRUM_URLS).map(async (key) => {
             const response = await fetch(DRUM_URLS[key]);
             const arrayBuffer = await response.arrayBuffer();
@@ -489,7 +498,6 @@ async function loadDrumSounds() {
             });
         });
         
-        // Load Phigros Background Music
         const bgmPromise = (async () => {
             const response = await fetch(BGM_URL);
             const arrayBuffer = await response.arrayBuffer();
@@ -547,11 +555,10 @@ function playHitSound(column = null) {
         source.buffer = drumBuffers[column];
         if (column === 3) source.playbackRate.setValueAtTime(0.8, audioCtx.currentTime);
         
-        // Define exact individual target volumes per specifications
-        let targetVolume = 1.0; // Column 0 default: Max volume
-        if (column === 1) targetVolume = 0.9; // Snare drum
-        if (column === 2) targetVolume = 0.8; // Hihat
-        if (column === 3) targetVolume = 0.9; // Cymbal
+        let targetVolume = 1.0; 
+        if (column === 1) targetVolume = 0.9; 
+        if (column === 2) targetVolume = 0.8; 
+        if (column === 3) targetVolume = 0.9; 
         
         gainNode.gain.setValueAtTime(targetVolume, audioCtx.currentTime);
         source.connect(gainNode);
@@ -572,7 +579,6 @@ function playHitSound(column = null) {
     osc.stop(audioCtx.currentTime + 0.25);
 }
 
-// System Synthesizer Fallback for Taiko Countdowns
 function scheduleBeep(freq, startTime, duration, countNum) {
     warmupAudioContext();
     const osc = audioCtx.createOscillator();
@@ -587,14 +593,13 @@ function scheduleBeep(freq, startTime, duration, countNum) {
     osc.stop(startTime + duration);
 }
 
-// Scheduled Countdown Hit sound mapping for 1.10 sample consistency
 function scheduleHihatSample(startTime) {
     warmupAudioContext();
     if (drumBuffers[2]) {
         const source = audioCtx.createBufferSource();
         const gainNode = audioCtx.createGain();
         source.buffer = drumBuffers[2];
-        gainNode.gain.setValueAtTime(0.8, startTime); // Maintain matching column volume hierarchy
+        gainNode.gain.setValueAtTime(0.8, startTime); 
         source.connect(gainNode);
         gainNode.connect(audioCtx.destination);
         source.start(startTime);
@@ -646,12 +651,12 @@ let resultViewStartTimestamp = 0;
 
 let canvasNextBtnRect = { x: 0, y: 0, w: 0, h: 0 };
 
-function isMobileDevice() {
+function iSMobileDevice() {
     return window.innerWidth <= 1024;
 }
 
 function checkOrientation() {
-    if (!isMobileDevice()) {
+    if (!iSMobileDevice()) {
         guardOverlay.style.display = 'none';
         return;
     }
@@ -704,7 +709,6 @@ function selectMode(mode) {
         canvasWrapper.className = '';
         canvasWrapper.classList.add('wrapper-phigros');
         canvas.width = 450;
-        // Standardized internal canvas dimension for proportional rendering asset scales
         canvas.height = 580;
     }
     
@@ -726,7 +730,6 @@ function selectSong(songId) {
         BEAT_DURATION = 60 / currentBPM;
         SUB_BEAT_DURATION = BEAT_DURATION / 4;
         
-        // Highlight selection visually
         document.querySelectorAll('.song-card').forEach(card => card.style.borderColor = '#2f3542');
         document.querySelector('.song-card.unlocked').style.borderColor = '#00cec9';
         updateStartButtonState();
@@ -825,19 +828,15 @@ function buildTimelineForQuestion() {
         for (let s = 0; s < 256; s++) {
             let itemTargetOffset = countInPeriod + (s * SUB_BEAT_DURATION);
             
-            // Track 0: Bass Drum
             if (rawBassPattern[s] === 1) {
                 activeNotes.push({ id: noteIdCounter++, targetOffset: itemTargetOffset, column: 0, hitScore: null, hitOffset: null, processed: false, missedEntirely: false });
             }
-            // Track 1: Snare Drum
             if (rawSnarePattern[s] === 1) {
                 activeNotes.push({ id: noteIdCounter++, targetOffset: itemTargetOffset, column: 1, hitScore: null, hitOffset: null, processed: false, missedEntirely: false });
             }
-            // Track 2: Hi-Hat
             if (rawHihatPattern[s] === 1) {
                 activeNotes.push({ id: noteIdCounter++, targetOffset: itemTargetOffset, column: 2, hitScore: null, hitOffset: null, processed: false, missedEntirely: false });
             }
-            // Track 3: Cymbal
             if (rawCymbalPattern[s] === 1) {
                 activeNotes.push({ id: noteIdCounter++, targetOffset: itemTargetOffset, column: 3, hitScore: null, hitOffset: null, processed: false, missedEntirely: false });
             }
@@ -889,10 +888,8 @@ function showGrandScoreboard() {
     gameState = 'FINAL_SCOREBOARD';
     rollingScoreDisplay = 0.0;
     
-    // Sum underlying raw scores (max 50 points total across 5 rounds)
     let rawSum = questionScores.reduce((a, b) => a + b, 0);
-    // Convert target to a 100-point metric base layout scale
-    targetFinalScore = (rawSum / 50.0) * 100.0;
+    targetFinalScore = rawSum; 
     
     lastTickTime = performance.now();
     currentActiveCommentary = getCommentaryByPoints(rawSum, true);
@@ -1066,7 +1063,7 @@ function getOptimizedScoreScreenTimeline() {
 const scoreBackgroundTimelinePool = getOptimizedScoreScreenTimeline();
 
 function getMappedY(percentageVal) {
-    let mobile = isMobileDevice();
+    let mobile = iSMobileDevice();
     
     if (currentMode === 'taiko') {
         if (gameState === 'TIMELINE_RUNNING') {
@@ -1131,13 +1128,10 @@ function gameLoop() {
     let timeNow = performance.now() / 1000;
     let relativeTime = timeNow - timelineStartTime;
     let countdownEndTime = 4 * BEAT_DURATION;
-    let mobile = isMobileDevice();
+    let mobile = iSMobileDevice();
 
-    // Dynamically calculate baseline threshold position for Phigros Mode 
-    // Shifted significantly higher up on computer mode (height - 110) to bypass scrolling fold limits
     let phigrosBaselineY = mobile ? (canvas.height - 65) : (canvas.height - 110);
 
-    // 1. Gameplay Active Interface
     if (gameState === 'TIMELINE_RUNNING') {
         ctx.save();
         
@@ -1175,7 +1169,6 @@ function gameLoop() {
             }
         }
 
-        // Dedicated Count-In Real-time Sequence Grid Evaluator
         if (relativeTime < countdownEndTime) {
             let calculatedSubBeat = Math.floor(relativeTime / SUB_BEAT_DURATION);
             if (calculatedSubBeat !== subBeatIndexTracker && calculatedSubBeat < 16) {
@@ -1183,13 +1176,10 @@ function gameLoop() {
                 let audioClockTime = audioCtx.currentTime;
                 
                 if (currentMode === 'phigros') {
-                    // Triggers Hi-Hat sample strictly on 1st, 5th, 9th, and 13th sub-beats (1 0 0 0 grid layout)
                     if (calculatedSubBeat % 4 === 0) {
                         scheduleHihatSample(audioClockTime);
                     }
                     
-                    // Anchor Hook: BGM starts exactly at 10th sub-beat (index 9) + 0.05 seconds delay
-                    // Incorporates a 1.5x gain node amplification constraint profile
                     if (calculatedSubBeat === 9 && backgroundMusicBuffer && !bgmStarted) {
                         bgmStarted = true;
                         warmupAudioContext();
@@ -1197,14 +1187,13 @@ function gameLoop() {
                         const bgmGainNode = audioCtx.createGain();
                         
                         bgmSourceNode.buffer = backgroundMusicBuffer;
-                        bgmGainNode.gain.setValueAtTime(1.5, audioClockTime + 0.05);
+                        bgmGainNode.gain.setValueAtTime(1.65, audioClockTime + 0.05); 
                         
                         bgmSourceNode.connect(bgmGainNode);
                         bgmGainNode.connect(audioCtx.destination);
                         bgmSourceNode.start(audioClockTime + 0.05);
                     }
                 } else {
-                    // Standard countdown fallback sequence dedicated to Taiko Mode
                     if (calculatedSubBeat === 0) scheduleBeep(470, audioClockTime, 0.12, 1);
                     else if (calculatedSubBeat === 4) scheduleBeep(470, audioClockTime, 0.12, 2);
                     else if (calculatedSubBeat === 8) scheduleBeep(470, audioClockTime, 0.12, 3);
@@ -1358,7 +1347,6 @@ function gameLoop() {
         uiOverlay.innerHTML = ''; 
     }
 
-    // 2. Individual Question Metric Overlay Evaluation Window
     if (gameState === 'QUESTION_SCORE') {
         let timestampNow = performance.now();
         let limitMaxScore = (currentMode === 'taiko') ? 10.0 : 100.0;
@@ -1448,7 +1436,6 @@ function gameLoop() {
             ctx.font = '900 70px "Futura", "Helvetica Neue", sans-serif';
             ctx.fillText(`${rollingScoreDisplay.toFixed(2)}`, canvas.width / 2, 210);
             
-            // Measure score width in Phigros mode to layout the appended smaller /100 metric tag
             let phigrosTextWidth = ctx.measureText(`${rollingScoreDisplay.toFixed(2)}`).width;
             ctx.save();
             ctx.textAlign = 'left';
@@ -1491,17 +1478,17 @@ function gameLoop() {
         uiOverlay.innerHTML = ''; 
     }
 
-    // 3. Final Accumulated Score Matrix Board
     if (gameState === 'FINAL_SCOREBOARD') {
         let timestampNow = performance.now();
         let totalScoreFinishedRising = false;
+        let finalMaxLimit = (currentMode === 'taiko') ? 50.0 : 100.0;
 
         if (rollingScoreDisplay < targetFinalScore) {
             let elapsed = timestampNow - lastTickTime;
             if (elapsed > 20) {
-                rollingScoreDisplay += 1.30; 
+                rollingScoreDisplay += (currentMode === 'taiko') ? 0.65 : 1.30; 
                 if (rollingScoreDisplay > targetFinalScore) rollingScoreDisplay = targetFinalScore;
-                playScoreTickSound(rollingScoreDisplay, 100.0);
+                playScoreTickSound(rollingScoreDisplay, finalMaxLimit);
                 lastTickTime = timestampNow;
             }
         } else {
@@ -1514,12 +1501,12 @@ function gameLoop() {
         ctx.fillStyle = '#ffffff';
         ctx.fillText(`${rollingScoreDisplay.toFixed(2)}`, canvas.width / 2, 145);
         
-        // Dynamically measure score size to align the smaller /100 indicator label
         let mainTextWidth = ctx.measureText(`${rollingScoreDisplay.toFixed(2)}`).width;
         ctx.textAlign = 'left';
         ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
         ctx.font = 'bold 48px "Futura", "Helvetica Neue", Arial, sans-serif';
-        ctx.fillText('/100', (canvas.width / 2) + (mainTextWidth / 2) + 5, 135);
+        let totalLabelString = (currentMode === 'taiko') ? '/50' : '/100';
+        ctx.fillText(totalLabelString, (canvas.width / 2) + (mainTextWidth / 2) + 5, 135);
         ctx.restore();
 
         if (totalScoreFinishedRising) {
