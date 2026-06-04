@@ -57,7 +57,6 @@
         }
         
         .wrapper-taiko { aspect-ratio: 800 / 520; max-width: 800px !important; }
-        /* Reduced vertical stretch for desktop layout to prevent scrolling */
         .wrapper-phigros { aspect-ratio: 450 / 580; max-width: 450px !important; }
         
         canvas {
@@ -121,7 +120,7 @@
         
         .modern-next-btn {
             position: absolute;
-            bottom: 100px; /* Safe position for Taiko */
+            bottom: 100px;
             right: 45px;
             background: #ffffff;
             color: #0c0c0e;
@@ -213,20 +212,25 @@
         #orientation-guard h2 { font-size: 24px; margin: 0 0 10px 0; color: #00cec9; }
         #orientation-guard p { font-size: 15px; color: #a4b0be; margin: 0; }
 
-        /* Media Query for Phone Landscape/Portrait Rules Only */
+        /* Media Query for Phone Mode Modifications Only */
         @media screen and (max-width: 1024px) {
             body {
                 padding: 5px 10px;
             }
-            /* Retain full tall scale specifically for portrait phone layout on Phigros */
+            /* PHONE MODE ONLY & TAIKO MODE: Reduce height to 70% (520 * 0.7 = 364) & move down 10% */
+            .wrapper-taiko { 
+                aspect-ratio: 800 / 364 !important; 
+                margin-top: 10% !important;
+            }
             .wrapper-phigros { 
                 aspect-ratio: 450 / 680 !important; 
             }
             .modern-next-btn {
-                bottom: 82px !important; /* Adjusted to sit at the exact canvas visual alignment axis */
+                bottom: 45px !important; /* Adjusted to visually match inside the scaled down matrix */
+                right: 30px !important;
             }
             .phigros-mobile-btn {
-                margin-top: -15px !important; /* Move "再玩一次" upwards safely */
+                margin-top: -15px !important;
             }
         }
     </style>
@@ -530,7 +534,6 @@ function selectMode(mode) {
         canvasWrapper.className = '';
         canvasWrapper.classList.add('wrapper-phigros');
         canvas.width = 450;
-        // Adjust system height canvas constraints for specific platforms
         canvas.height = (window.innerWidth <= 1024) ? 680 : 580;
     }
     checkOrientation();
@@ -790,23 +793,23 @@ const scoreBackgroundTimelinePool = getOptimizedScoreScreenTimeline();
 function drawFadedGameplayBackground(simulatedRelativeTime, trackOffsetY) {
     ctx.save();
     let judgmentLineX = 220;
-    let trackBaseY = 320 + trackOffsetY;
+    let trackBaseY = 240 + trackOffsetY; 
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
     ctx.lineWidth = 4;
     ctx.beginPath(); 
-    ctx.arc(judgmentLineX, trackBaseY, 45, 0, Math.PI * 2); 
+    ctx.arc(judgmentLineX, trackBaseY, 35, 0, Math.PI * 2); 
     ctx.stroke();
     ctx.fillStyle = 'rgba(255,255,255,0.02)';
-    ctx.fillRect(0, trackBaseY - 50, canvas.width, 100); 
+    ctx.fillRect(0, trackBaseY - 40, canvas.width, 80); 
     
     scoreBackgroundTimelinePool.forEach(targetOffset => {
         let targetTimeModulo = targetOffset % (8 * BEAT_DURATION);
         let xPos = judgmentLineX + ((targetTimeModulo - simulatedRelativeTime) * 400);
         if (xPos > -40 && xPos < canvas.width + 40) {
             ctx.fillStyle = 'rgba(255, 255, 255, 0.55)'; 
-            ctx.beginPath(); ctx.arc(xPos, trackBaseY, 28, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(xPos, trackBaseY, 22, 0, Math.PI * 2); ctx.fill();
             ctx.fillStyle = 'rgba(255, 56, 56, 0.65)'; 
-            ctx.beginPath(); ctx.arc(xPos, trackBaseY, 21, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(xPos, trackBaseY, 15, 0, Math.PI * 2); ctx.fill();
         }
     });
     ctx.restore();
@@ -821,9 +824,9 @@ function gameLoop() {
     let isMobilePhone = window.innerWidth <= 1024;
     let isLandscape = window.innerWidth > window.innerHeight;
     
-    // Core Layout Metrics for Phone Horizontal Mode Viewports
-    let phoneHorizontalGameplayShiftY = (currentMode === 'taiko' && isMobilePhone && isLandscape) ? Math.floor(canvas.height * 0.33) : 0;
-    let phoneHorizontalScoreShiftY = (currentMode === 'taiko' && isMobilePhone && isLandscape) ? Math.floor(canvas.height * 0.25) : 0;
+    // Scale tracking layout coordinates inside the 70% canvas view
+    let phoneHorizontalGameplayShiftY = (currentMode === 'taiko' && isMobilePhone && isLandscape) ? -45 : 0;
+    let phoneHorizontalScoreShiftY = (currentMode === 'taiko' && isMobilePhone && isLandscape) ? -30 : 0;
 
     // 1. Gameplay Frame Processing View
     if (gameState === 'TIMELINE_RUNNING') {
@@ -833,10 +836,9 @@ function gameLoop() {
         if (currentMode === 'taiko') {
             let patternIDs = questions[currentQuestionIndex];
             
-            // Shift cards down another 1/3 of track height to fully reveal them on mobile webviews
-            let cardPanelHeight = 110;
-            let cardPanelY = (isMobilePhone && isLandscape) ? 65 : 0; 
-            let scaleFactorCard = (isMobilePhone && isLandscape) ? 0.8 : 1.0;
+            let cardPanelHeight = (isMobilePhone && isLandscape) ? 80 : 110;
+            let cardPanelY = (isMobilePhone && isLandscape) ? 15 : 0; 
+            let scaleFactorCard = (isMobilePhone && isLandscape) ? 0.75 : 1.0;
             
             ctx.fillStyle = '#1e1e24';
             ctx.fillRect(0, cardPanelY, canvas.width, cardPanelHeight);
@@ -864,16 +866,15 @@ function gameLoop() {
                 }
                 if (i === currentActiveImageIndex) {
                     ctx.strokeStyle = '#00cec9';
-                    ctx.lineWidth = 4;
-                    ctx.strokeRect(xPos + 2, cardPanelY + 2, imgWidth - 4, cardPanelHeight - 4);
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(xPos + 1, cardPanelY + 1, imgWidth - 2, cardPanelHeight - 2);
                 }
             }
 
-            // Move 1/5 layout matrix indicator downwards cleanly alongside other score parameters
             ctx.save();
             ctx.fillStyle = '#a4b0be';
-            ctx.font = 'bold 20px Arial, sans-serif';
-            let labelRoundY = isMobilePhone && isLandscape ? 205 + phoneHorizontalGameplayShiftY : 145;
+            ctx.font = 'bold 18px Arial, sans-serif';
+            let labelRoundY = isMobilePhone && isLandscape ? 135 : 145;
             ctx.fillText(`${currentQuestionIndex + 1} / 5`, 25, labelRoundY);
             ctx.restore();
         }
@@ -892,14 +893,14 @@ function gameLoop() {
 
         if (currentMode === 'taiko') {
             let judgmentLineX = 220;
-            let trackBaseY = 320 + phoneHorizontalGameplayShiftY;
+            let trackBaseY = 300 + phoneHorizontalGameplayShiftY;
             ctx.strokeStyle = '#fff';
             ctx.lineWidth = 4;
             ctx.beginPath(); 
-            ctx.arc(judgmentLineX, trackBaseY, 45, 0, Math.PI * 2); 
+            ctx.arc(judgmentLineX, trackBaseY, 35, 0, Math.PI * 2); 
             ctx.stroke();
             ctx.fillStyle = 'rgba(255,255,255,0.03)';
-            ctx.fillRect(0, trackBaseY - 50, canvas.width, 100); 
+            ctx.fillRect(0, trackBaseY - 40, canvas.width, 80); 
             
             if (currentCombo >= 2) {
                 ctx.save();
@@ -907,11 +908,11 @@ function gameLoop() {
                 ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
                 ctx.shadowBlur = 4;
                 ctx.fillStyle = '#ffb8b8';
-                ctx.font = 'bold 16px Impact, Arial';
-                ctx.fillText('COMBO', 110, trackBaseY - 12);
+                ctx.font = 'bold 14px Impact, Arial';
+                ctx.fillText('COMBO', 110, trackBaseY - 10);
                 ctx.fillStyle = '#ffffff';
-                ctx.font = 'bold 38px Impact, Arial'; 
-                ctx.fillText(currentCombo, 110, trackBaseY + 25);
+                ctx.font = 'bold 30px Impact, Arial'; 
+                ctx.fillText(currentCombo, 110, trackBaseY + 20);
                 ctx.restore();
             }
             
@@ -923,20 +924,20 @@ function gameLoop() {
                     if (relativeTime <= displayOnset + 0.15) {
                         if (judgment.text !== '') {
                             ctx.save();
-                            ctx.font = '900 36px "Arial Black", "Microsoft JhengHei"';
+                            ctx.font = '900 30px "Arial Black", "Microsoft JhengHei"';
                             ctx.textAlign = 'center';
                             ctx.strokeStyle = '#000000';
-                            ctx.lineWidth = 6;
-                            ctx.strokeText(judgment.text, judgmentLineX, trackBaseY - 80);
+                            ctx.lineWidth = 5;
+                            ctx.strokeText(judgment.text, judgmentLineX, trackBaseY - 60);
                             ctx.fillStyle = '#ffffff'; 
-                            ctx.fillText(judgment.text, judgmentLineX, trackBaseY - 80);
+                            ctx.fillText(judgment.text, judgmentLineX, trackBaseY - 60);
                             ctx.restore();
                         }
                     }
                 } else {
                     if (xPos > judgmentLineX - 40 && xPos < canvas.width + 40) {
                         ctx.fillStyle = '#ffffff'; 
-                        ctx.beginPath(); ctx.arc(xPos, trackBaseY, 30, 0, Math.PI * 2); ctx.fill();
+                        ctx.beginPath(); ctx.arc(xPos, trackBaseY, 24, 0, Math.PI * 2); ctx.fill();
                     }
                 }
             });
@@ -1043,28 +1044,27 @@ function gameLoop() {
                 ctx.scale(0.95, 0.95);
             }
 
-            // Downward adjustment of 1/4 screen size for Round indicator, total score, and commentary
             ctx.save();
             ctx.fillStyle = '#a4b0be';
-            ctx.font = 'bold 24px Arial, sans-serif';
-            let scoreRoundY = isMobilePhone && isLandscape ? 120 + phoneHorizontalScoreShiftY : 65;
+            ctx.font = 'bold 20px Arial, sans-serif';
+            let scoreRoundY = isMobilePhone && isLandscape ? 85 : 65;
             ctx.fillText(`${currentQuestionIndex + 1} / 5`, 50, scoreRoundY);
             ctx.restore();
 
             ctx.save();
             ctx.textAlign = 'right';
-            ctx.font = '900 82px Helvetica Neue, Arial, sans-serif';
+            ctx.font = '900 68px Helvetica Neue, Arial, sans-serif';
             ctx.fillStyle = '#ffffff';
-            let scoreTextY = isMobilePhone && isLandscape ? 185 + phoneHorizontalScoreShiftY : 130;
+            let scoreTextY = isMobilePhone && isLandscape ? 135 : 130;
             ctx.fillText(`${rollingScoreDisplay.toFixed(2)}`, canvas.width - 50, scoreTextY);
             ctx.restore();
 
             if (scoreFinishedRisingGlobal) {
                 ctx.save();
                 ctx.textAlign = 'right';
-                ctx.font = 'bold 24px Microsoft JhengHei, sans-serif';
+                ctx.font = 'bold 20px Microsoft JhengHei, sans-serif';
                 ctx.fillStyle = '#a4b0be';
-                let commentaryTextY = isMobilePhone && isLandscape ? 240 + phoneHorizontalScoreShiftY : 185;
+                let commentaryTextY = isMobilePhone && isLandscape ? 180 : 185;
                 ctx.fillText(currentActiveCommentary, canvas.width - 50, commentaryTextY);
                 ctx.restore();
             }
@@ -1088,7 +1088,6 @@ function gameLoop() {
             ctx.restore();
         }
 
-        // Exact horizontal axis lock alignment for both "稍慢" Evaluation and "下一步" button
         if (scoreFinishedRisingGlobal && currentMode === 'taiko') {
             ctx.save();
             if (isMobilePhone) {
@@ -1108,10 +1107,9 @@ function gameLoop() {
             }
 
             ctx.fillStyle = "#ffffff";
-            ctx.font = '900 54px "Microsoft JhengHei", Arial, sans-serif'; 
+            ctx.font = '900 44px "Microsoft JhengHei", Arial, sans-serif'; 
             
-            // Set uniform Y position coordinate vector (Y = 410) inside canvas boundaries
-            let finalEvaluationY = (isMobilePhone && isLandscape) ? 410 : 465;
+            let finalEvaluationY = (isMobilePhone && isLandscape) ? 310 : 465;
             ctx.fillText(displayTrendString, 50, finalEvaluationY);
             ctx.restore();
         }
@@ -1138,7 +1136,7 @@ function gameLoop() {
 
         ctx.save();
         if (currentMode === 'taiko' && isMobilePhone && isLandscape) {
-            ctx.translate(0, canvas.height * 0.25);
+            ctx.translate(0, -50); 
         }
         ctx.save();
         if (isMobilePhone) {
@@ -1148,29 +1146,29 @@ function gameLoop() {
 
         ctx.save();
         ctx.textAlign = 'center';
-        ctx.font = '900 105px Helvetica Neue, Arial, sans-serif';
+        ctx.font = '900 80px Helvetica Neue, Arial, sans-serif';
         ctx.fillStyle = '#ffffff';
-        ctx.fillText(`${rollingScoreDisplay.toFixed(2)}`, canvas.width / 2, 145);
+        ctx.fillText(`${rollingScoreDisplay.toFixed(2)}`, canvas.width / 2, 130);
         
         let mainTextWidth = ctx.measureText(`${rollingScoreDisplay.toFixed(2)}`).width;
         ctx.textAlign = 'left';
         ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-        ctx.font = 'bold 48px Helvetica Neue, Arial, sans-serif';
-        ctx.fillText('/50', (canvas.width / 2) + (mainTextWidth / 2) + 5, 135);
+        ctx.font = 'bold 36px Helvetica Neue, Arial, sans-serif';
+        ctx.fillText('/50', (canvas.width / 2) + (mainTextWidth / 2) + 5, 120);
         ctx.restore();
 
         if (totalScoreFinishedRising) {
             ctx.save();
             ctx.textAlign = 'center';
-            ctx.font = 'bold 26px Microsoft JhengHei, sans-serif';
+            ctx.font = 'bold 22px Microsoft JhengHei, sans-serif';
             ctx.fillStyle = '#ffffff';
-            ctx.fillText(currentActiveCommentary, canvas.width / 2, 215);
+            ctx.fillText(currentActiveCommentary, canvas.width / 2, 185);
             ctx.restore();
         }
 
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
         ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.moveTo(80, 260); ctx.lineTo(720, 260); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(80, 220); ctx.lineTo(720, 220); ctx.stroke();
 
         ctx.save();
         ctx.textAlign = 'center';
@@ -1181,17 +1179,17 @@ function gameLoop() {
             let computedX = matrixStartLeftX + (i * segmentSpacing);
             let scoreVal = questionScores[i] || 0;
             ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
-            ctx.font = 'bold 20px Arial, sans-serif';
-            ctx.fillText(`${i + 1}`, computedX, 320);
+            ctx.font = 'bold 18px Arial, sans-serif';
+            ctx.fillText(`${i + 1}`, computedX, 270);
 
             if (totalScoreFinishedRising) {
                 ctx.fillStyle = '#ffffff';
-                ctx.font = 'bold 36px Arial, sans-serif';
-                ctx.fillText(scoreVal.toFixed(1), computedX, 385);
+                ctx.font = 'bold 30px Arial, sans-serif';
+                ctx.fillText(scoreVal.toFixed(1), computedX, 325);
             } else {
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
-                ctx.font = 'bold 36px Arial, sans-serif';
-                ctx.fillText("0.0", computedX, 385);
+                ctx.font = 'bold 30px Arial, sans-serif';
+                ctx.fillText("0.0", computedX, 325);
             }
         }
         ctx.restore();
