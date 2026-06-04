@@ -18,26 +18,44 @@
             overflow: hidden;
             user-select: none;
         }
-        #game-container { text-align: center; position: relative; max-width: 850px; }
+        #game-container { 
+            text-align: center; 
+            position: relative; 
+            width: 100%;
+            max-width: 850px; 
+            padding: 10px;
+            box-sizing: border-box;
+        }
         h1 { font-size: 36px; margin-bottom: 5px; color: #00cec9; letter-spacing: 3px; }
         .credits { font-size: 14px; color: #747d8c; margin-bottom: 25px; }
         
-        .mode-container { display: flex; justify-content: center; gap: 15px; margin-bottom: 20px; }
+        .mode-container { display: flex; flex-direction: column; align-items: center; gap: 15px; margin-bottom: 20px; }
+        .mode-row { display: flex; align-items: center; gap: 12px; }
+        .orientation-hint { font-size: 14px; color: #a4b0be; font-weight: bold; }
         
+        /* Responsive Canvas wrapper preventing mobile overflow/scrolling */
         #canvas-wrapper {
             position: relative;
-            width: 800px;
-            height: 520px;
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
             border: 4px solid #2f3542;
             background-color: #151518;
             box-shadow: 0 10px 30px rgba(0,0,0,0.7);
             border-radius: 6px;
             overflow: hidden;
         }
+        
+        /* Dynamic Aspect Classes based on current mode */
+        .wrapper-taiko { aspect-ratio: 800 / 520; max-width: 800px !important; }
+        .wrapper-phigros { aspect-ratio: 450 / 700; max-width: 450px !important; }
+        
         canvas {
             position: absolute;
             top: 0;
             left: 0;
+            width: 100%;
+            height: 100%;
             z-index: 2;
             background: transparent;
         }
@@ -54,6 +72,7 @@
             font-weight: bold;
             border-radius: 6px;
             transition: all 0.2s ease;
+            min-width: 160px;
         }
         .btn.selected {
             background: #00cec9;
@@ -134,7 +153,7 @@
             min-height: 20px;
         }
 
-        /* Responsive Landscape Enforcer Guard Overlay */
+        /* Enforcer System Guard Overlays */
         #orientation-guard {
             display: none;
             position: fixed;
@@ -158,30 +177,32 @@
             height: 65px;
             fill: #00cec9;
             margin-bottom: 20px;
-            animation: rotateDevice 2s ease-in-out infinite;
         }
-        @keyframes rotateDevice {
+        .animate-to-landscape { animation: rotateLandscape 2s ease-in-out infinite; }
+        .animate-to-portrait { animation: rotatePortrait 2s ease-in-out infinite; }
+
+        @keyframes rotateLandscape {
             0% { transform: rotate(0deg); }
             50% { transform: rotate(-90deg); }
             100% { transform: rotate(0deg); }
         }
+        @keyframes rotatePortrait {
+            0% { transform: rotate(-90deg); }
+            50% { transform: rotate(0deg); }
+            100% { transform: rotate(-90deg); }
+        }
         #orientation-guard h2 { font-size: 24px; margin: 0 0 10px 0; color: #00cec9; }
         #orientation-guard p { font-size: 15px; color: #a4b0be; margin: 0; }
-
-        @media screen and (max-aspect-ratio: 13/9) and (max-width: 1024px) {
-            #orientation-guard { display: flex; }
-        }
     </style>
 </head>
 <body>
 
-<!-- Landscape Guard Overlay Block -->
 <div id="orientation-guard">
-    <svg viewBox="0 0 24 24">
+    <svg id="guard-svg" viewBox="0 0 24 24">
         <path d="M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z"/>
     </svg>
-    <h2>請將手機旋轉至橫螢幕</h2>
-    <p>Please rotate your device to landscape mode to play.</p>
+    <h2 id="guard-title">請調整手機方向</h2>
+    <p id="guard-desc">Please rotate your device to continue.</p>
 </div>
 
 <div id="game-container">
@@ -199,8 +220,14 @@
         <div id="audio-status">⏳ 初始化音訊與加載樂器中，請點擊任意處開始...</div>
 
         <div class="mode-container">
-            <button id="btn-taiko" class="btn" onclick="selectMode('taiko')">太鼓模式</button>
-            <button id="btn-phigros" class="btn" onclick="selectMode('phigros')">音遊模式</button>
+            <div class="mode-row">
+                <button id="btn-taiko" class="btn" onclick="selectMode('taiko')">太鼓模式</button>
+                <span class="orientation-hint">💡 (建議使用橫螢幕)</span>
+            </div>
+            <div class="mode-row">
+                <button id="btn-phigros" class="btn" onclick="selectMode('phigros')">音遊模式</button>
+                <span class="orientation-hint">💡 (建議使用直螢幕)</span>
+            </div>
         </div>
         
         <button id="btn-start" class="btn-action" onclick="startGame()" disabled>開始遊戲</button>
@@ -226,6 +253,11 @@ const btnTaiko = document.getElementById('btn-taiko');
 const btnPhigros = document.getElementById('btn-phigros');
 const btnStart = document.getElementById('btn-start');
 
+const guardOverlay = document.getElementById('orientation-guard');
+const guardSvg = document.getElementById('guard-svg');
+const guardTitle = document.getElementById('guard-title');
+const guardDesc = document.getElementById('guard-desc');
+
 // --- ENGINE CONSTANTS (60 BPM) ---
 const BPM = 60;
 const BEAT_DURATION = 60 / BPM; 
@@ -250,25 +282,18 @@ const OVERALL_COMMENTS = {
     tier1: ["海倫凱勒都比你強。", "你試了。我們注意到了。就這樣。", "我阿公都比你行。", "連一根皮毛都沒摸到。"],
     tier2: ["就這?", "中庸。字典裡最無趣的詞。", "你還好嗎?"],
     tier3: ["你抓到大概了。真的只有大概。", "還行吧。", "看來你還是有點東西的。只有一點點。"],
-    tier4: ["我們注意到你的表現了. 現在開心了嗎?", "勉強能拿來炫耀。", "好吧。我承認你有點實力。"],
+    tier4: ["我們注意到你的表現了。現在開心了嗎?", "勉強能拿來炫耀。", "好吧。我承認你有點實力。"],
     tier5: ["精確到讓人作嘔。", "挺沒用的能力其實。", "近乎完美都不足以形容你。", "外星人，你被我們逮捕了。"]
 };
 
-function getRandomComment(score, isOverall = false) {
+function getRandomComment(score, isOverall = false, maxPossible = 10.0) {
     const pool = isOverall ? OVERALL_COMMENTS : INDIVIDUAL_COMMENTS;
-    if (isOverall) {
-        if (score < 35) return pool.tier1[Math.floor(Math.random() * pool.tier1.length)];
-        if (score < 40) return pool.tier2[Math.floor(Math.random() * pool.tier2.length)];
-        if (score < 45) return pool.tier3[Math.floor(Math.random() * pool.tier3.length)];
-        if (score < 48) return pool.tier4[Math.floor(Math.random() * pool.tier4.length)];
-        return pool.tier5[Math.floor(Math.random() * pool.tier5.length)];
-    } else {
-        if (score < 5.0) return pool.tier1[Math.floor(Math.random() * pool.tier1.length)];
-        if (score < 7.0) return pool.tier2[Math.floor(Math.random() * pool.tier2.length)];
-        if (score < 8.5) return pool.tier3[Math.floor(Math.random() * pool.tier3.length)];
-        if (score < 9.5) return pool.tier4[Math.floor(Math.random() * pool.tier4.length)];
-        return pool.tier5[Math.floor(Math.random() * pool.tier5.length)];
-    }
+    let ratio = score / maxPossible;
+    if (ratio < 0.35) return pool.tier1[Math.floor(Math.random() * pool.tier1.length)];
+    if (ratio < 0.55) return pool.tier2[Math.floor(Math.random() * pool.tier2.length)];
+    if (ratio < 0.75) return pool.tier3[Math.floor(Math.random() * pool.tier3.length)];
+    if (ratio < 0.90) return pool.tier4[Math.floor(Math.random() * pool.tier4.length)];
+    return pool.tier5[Math.floor(Math.random() * pool.tier5.length)];
 }
 
 // --- AUDIO SYNTHESIS & FILE LOADING SYSTEM ---
@@ -335,6 +360,7 @@ window.addEventListener('click', loadDrumSounds, { once: true });
 window.addEventListener('keydown', loadDrumSounds, { once: true });
 window.addEventListener('DOMContentLoaded', () => {
     setTimeout(loadDrumSounds, 800);
+    checkOrientation();
 });
 
 function playHitSound(column = null) {
@@ -435,6 +461,42 @@ let validHitsCount = 0;
 let scoreFinishedRisingGlobal = false;
 let resultViewStartTimestamp = 0;
 
+// --- DYNAMIC ENFORCER AND LAYOUT HANDLERS ---
+function checkOrientation() {
+    // Only engage enforcer screen overlays if width matches standard smart hardware profiles
+    if (window.innerWidth > 1024) {
+        guardOverlay.style.display = 'none';
+        return;
+    }
+    
+    let isLandscape = window.innerWidth > window.innerHeight;
+    
+    if (currentMode === 'taiko') {
+        if (!isLandscape) {
+            guardOverlay.style.display = 'flex';
+            guardSvg.className = 'animate-to-landscape';
+            guardTitle.innerText = '請將手機旋轉至橫螢幕';
+            guardDesc.innerText = 'Please rotate your device to landscape mode to play Taiko.';
+        } else {
+            guardOverlay.style.display = 'none';
+        }
+    } else if (currentMode === 'phigros') {
+        if (isLandscape) {
+            guardOverlay.style.display = 'flex';
+            guardSvg.className = 'animate-to-portrait';
+            guardTitle.innerText = '請將手機旋轉至直螢幕';
+            guardDesc.innerText = 'Please rotate your device to portrait mode to play Phigros.';
+        } else {
+            guardOverlay.style.display = 'none';
+        }
+    } else {
+        guardOverlay.style.display = 'none';
+    }
+}
+
+window.addEventListener('resize', checkOrientation);
+window.addEventListener('orientationchange', checkOrientation);
+
 function selectMode(mode) {
     currentMode = mode;
     warmupAudioContext();
@@ -442,10 +504,22 @@ function selectMode(mode) {
     if (mode === 'taiko') {
         btnTaiko.classList.add('selected');
         btnPhigros.classList.remove('selected');
+        
+        canvasWrapper.className = '';
+        canvasWrapper.classList.add('wrapper-taiko');
+        canvas.width = 800;
+        canvas.height = 520;
     } else {
         btnPhigros.classList.add('selected');
         btnTaiko.classList.remove('selected');
+        
+        canvasWrapper.className = '';
+        canvasWrapper.classList.add('wrapper-phigros');
+        canvas.width = 450;
+        canvas.height = 700;
     }
+    
+    checkOrientation();
     
     if (audioLoaded) {
         btnStart.disabled = false;
@@ -480,11 +554,20 @@ function generateSession() {
     questionScores = [];
     currentQuestionIndex = 0;
     
-    for(let i = 0; i < 5; i++) {
-        let structuralPool = [1, 2, 3, 4, 5, 6];
-        shuffleArray(structuralPool);
-        let patternCombination = [structuralPool[0], structuralPool[1], structuralPool[2], structuralPool[3]];
-        questions.push(patternCombination);
+    if (currentMode === 'taiko') {
+        for(let i = 0; i < 5; i++) {
+            let structuralPool = [1, 2, 3, 4, 5, 6];
+            shuffleArray(structuralPool);
+            let patternCombination = [structuralPool[0], structuralPool[1], structuralPool[2], structuralPool[3]];
+            questions.push(patternCombination);
+        }
+    } else {
+        // Phigros Single continuous Round: Generates 16 numbers from 1 to 6 representing beats
+        let phigrosTrackBeats = [];
+        for (let i = 0; i < 16; i++) {
+            phigrosTrackBeats.push(Math.floor(Math.random() * 6) + 1);
+        }
+        questions.push(phigrosTrackBeats);
     }
 }
 
@@ -498,7 +581,6 @@ function calculateAccuracyScore(offset) {
 function getJudgmentData(offset, isMissedEntirely) {
     if (isMissedEntirely) return { color: '#ff4d4d', text: '' }; 
     let absOffset = Math.abs(offset);
-    // Mandatory change: text strings are retained, colors are unified to solid white
     if (absOffset <= 0.030) return { color: '#ffffff', text: '完美' };   
     if (absOffset <= 0.060) return { color: '#ffffff', text: '良' };      
     if (absOffset <= 0.120) return { color: '#ffffff', text: '差' };       
@@ -517,30 +599,55 @@ function buildTimelineForQuestion() {
     validHitsOffsetSum = 0;
     validHitsCount = 0;
     
-    let patternIDs = questions[currentQuestionIndex];
     let noteIdCounter = 0;
     
-    for (let beatIdx = 0; beatIdx < 4; beatIdx++) {
-        let patternNum = patternIDs[beatIdx];
-        let subBeatMask = BEAT_PATTERNS[patternNum];
-        
-        for (let subIdx = 0; subIdx < 4; subIdx++) {
-            if (subBeatMask[subIdx] === 1) {
-                let targetTime = (4 * BEAT_DURATION) + (beatIdx * BEAT_DURATION) + (subIdx * SUB_BEAT_DURATION);
-                let randomizedColumn = Math.floor(Math.random() * 4); 
-                
-                activeNotes.push({
-                    id: noteIdCounter++, 
-                    targetOffset: targetTime,
-                    column: randomizedColumn,
-                    patternOrigin: patternNum,
-                    hitScore: null,
-                    hitOffset: null,
-                    processed: false,   
-                    missedEntirely: false
-                });
+    if (currentMode === 'taiko') {
+        let patternIDs = questions[currentQuestionIndex];
+        for (let beatIdx = 0; beatIdx < 4; beatIdx++) {
+            let patternNum = patternIDs[beatIdx];
+            let subBeatMask = BEAT_PATTERNS[patternNum];
+            
+            for (let subIdx = 0; subIdx < 4; subIdx++) {
+                if (subBeatMask[subIdx] === 1) {
+                    let targetTime = (4 * BEAT_DURATION) + (beatIdx * BEAT_DURATION) + (subIdx * SUB_BEAT_DURATION);
+                    let randomizedColumn = Math.floor(Math.random() * 4); 
+                    
+                    activeNotes.push({
+                        id: noteIdCounter++, 
+                        targetOffset: targetTime,
+                        column: randomizedColumn,
+                        patternOrigin: patternNum,
+                        hitScore: null,
+                        hitOffset: null,
+                        processed: false,   
+                        missedEntirely: false
+                    });
+                }
             }
         }
+    } else {
+        // Phigros Continuous Track Deployment: Map 16 dynamic sequence elements linearly
+        let trackBeatsArray = questions[0]; 
+        trackBeatsArray.forEach((patternNum, beatIdx) => {
+            let subBeatMask = BEAT_PATTERNS[patternNum] || [1, 0, 0, 0];
+            for (let subIdx = 0; subIdx < 4; subIdx++) {
+                if (subBeatMask[subIdx] === 1) {
+                    let targetTime = (4 * BEAT_DURATION) + (beatIdx * BEAT_DURATION) + (subIdx * SUB_BEAT_DURATION);
+                    let randomizedColumn = Math.floor(Math.random() * 4);
+                    
+                    activeNotes.push({
+                        id: noteIdCounter++,
+                        targetOffset: targetTime,
+                        column: randomizedColumn,
+                        patternOrigin: patternNum,
+                        hitScore: null,
+                        hitOffset: null,
+                        processed: false,
+                        missedEntirely: false
+                    });
+                }
+            }
+        });
     }
 }
 
@@ -555,20 +662,31 @@ function endQuestion() {
     activeNotes.forEach(note => { accumulated += note.hitScore; });
     
     let avg = totalNotes > 0 ? accumulated / totalNotes : 0.0;
-    questionScores.push(avg);
     
-    rollingScoreDisplay = 0.0;
-    targetFinalScore = avg;
+    if (currentMode === 'taiko') {
+        questionScores.push(avg);
+        rollingScoreDisplay = 0.0;
+        targetFinalScore = avg;
+        currentActiveCommentary = getRandomComment(avg, false, 10.0);
+        
+        let nextClickAction = (currentQuestionIndex < 4) ? "nextQuestion()" : "showGrandScoreboard()";
+        actionBtnContainer.innerHTML = `
+            <button id="btn-next-step" class="modern-next-btn" onclick="${nextClickAction}" disabled>
+                <span>下一步</span>
+                <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>`;
+    } else {
+        // Phigros direct scale mapping to a grand total of 100 points
+        let scaledGrandScore = avg * 10.0; 
+        questionScores.push(scaledGrandScore);
+        rollingScoreDisplay = 0.0;
+        targetFinalScore = scaledGrandScore;
+        currentActiveCommentary = getRandomComment(scaledGrandScore, true, 100.0);
+        
+        actionBtnContainer.innerHTML = `<button id="btn-next-step" class="btn-action" style="margin-top:15px;" onclick="location.reload()" disabled>再玩一次</button>`;
+    }
+    
     lastTickTime = performance.now();
-    
-    currentActiveCommentary = getRandomComment(avg, false);
-
-    let nextClickAction = (currentQuestionIndex < 4) ? "nextQuestion()" : "showGrandScoreboard()";
-    actionBtnContainer.innerHTML = `
-        <button id="btn-next-step" class="modern-next-btn" onclick="${nextClickAction}" disabled>
-            <span>下一步</span>
-            <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </button>`;
 }
 
 function nextQuestion() {
@@ -581,7 +699,7 @@ function showGrandScoreboard() {
     rollingScoreDisplay = 0.0;
     targetFinalScore = questionScores.reduce((a, b) => a + b, 0);
     lastTickTime = performance.now();
-    currentActiveCommentary = getRandomComment(targetFinalScore, true);
+    currentActiveCommentary = getRandomComment(targetFinalScore, true, 50.0);
     
     actionBtnContainer.innerHTML = `<button class="btn-action" style="margin-top:15px;" onclick="location.reload()">再玩一次</button>`;
 }
@@ -647,11 +765,9 @@ canvas.addEventListener('touchstart', (e) => {
     e.preventDefault(); 
     
     if (currentMode === 'taiko') {
-        // Taiko Mode: Phone interaction tracks tap anywhere on screening space
         handleHit(null);
     } 
     else if (currentMode === 'phigros') {
-        // Phigros Mode: Tracks hit coordinates mapped onto bottom 4 horizontal splits
         let rect = canvas.getBoundingClientRect();
         for (let i = 0; i < e.changedTouches.length; i++) {
             let touch = e.changedTouches[i];
@@ -723,42 +839,46 @@ function gameLoop() {
     
     // 1. Live Interactive Gameplay Frame Handler
     if (gameState === 'TIMELINE_RUNNING') {
-        let patternIDs = questions[currentQuestionIndex];
-        ctx.fillStyle = '#1e1e24';
-        ctx.fillRect(0, 0, canvas.width, 110);
+        let maxDurationBeats = (currentMode === 'taiko') ? 8 : 20; 
         
-        let currentActiveImageIndex = -1;
-        if (relativeTime >= countdownEndTime) {
-            currentActiveImageIndex = Math.floor((relativeTime - countdownEndTime) / BEAT_DURATION);
-        }
-        
-        let imgWidth = canvas.width / 4; 
-        for (let i = 0; i < 4; i++) {
-            let imgId = patternIDs[i];
-            let xPos = i * imgWidth;
+        if (currentMode === 'taiko') {
+            let patternIDs = questions[currentQuestionIndex];
+            ctx.fillStyle = '#1e1e24';
+            ctx.fillRect(0, 0, canvas.width, 110);
             
-            if (images[imgId] && images[imgId].complete) {
-                ctx.drawImage(images[imgId], xPos, 0, imgWidth, 110);
-            } else {
-                ctx.strokeStyle = '#3a3a44';
-                ctx.strokeRect(xPos, 0, imgWidth, 110);
-                ctx.fillStyle = '#fff';
-                ctx.font = '14px Segoe UI';
-                ctx.fillText(`節奏型圖卡 ${imgId}.jpg`, xPos + 40, 60);
+            let currentActiveImageIndex = -1;
+            if (relativeTime >= countdownEndTime) {
+                currentActiveImageIndex = Math.floor((relativeTime - countdownEndTime) / BEAT_DURATION);
             }
             
-            if (i === currentActiveImageIndex) {
-                ctx.strokeStyle = '#00cec9';
-                ctx.lineWidth = 4;
-                ctx.strokeRect(xPos + 2, 2, imgWidth - 4, 106);
+            let imgWidth = canvas.width / 4; 
+            for (let i = 0; i < 4; i++) {
+                let imgId = patternIDs[i];
+                let xPos = i * imgWidth;
+                
+                if (images[imgId] && images[imgId].complete) {
+                    ctx.drawImage(images[imgId], xPos, 0, imgWidth, 110);
+                } else {
+                    ctx.strokeStyle = '#3a3a44';
+                    ctx.strokeRect(xPos, 0, imgWidth, 110);
+                    ctx.fillStyle = '#fff';
+                    ctx.font = '14px Segoe UI';
+                    ctx.fillText(`節奏型圖卡 ${imgId}.jpg`, xPos + 40, 60);
+                }
+                
+                if (i === currentActiveImageIndex) {
+                    ctx.strokeStyle = '#00cec9';
+                    ctx.lineWidth = 4;
+                    ctx.strokeRect(xPos + 2, 2, imgWidth - 4, 106);
+                }
             }
-        }
 
-        ctx.save();
-        ctx.fillStyle = '#a4b0be';
-        ctx.font = 'bold 20px Arial, sans-serif';
-        ctx.fillText(`${currentQuestionIndex + 1} / 5`, 25, 145);
-        ctx.restore();
+            ctx.save();
+            ctx.fillStyle = '#a4b0be';
+            ctx.font = 'bold 20px Arial, sans-serif';
+            ctx.fillText(`${currentQuestionIndex + 1} / 5`, 25, 145);
+            ctx.restore();
+        }
 
         if (relativeTime < countdownEndTime) {
             let currentCountdownBeat = Math.floor(relativeTime / BEAT_DURATION);
@@ -817,7 +937,7 @@ function gameLoop() {
                             ctx.strokeStyle = '#000000';
                             ctx.lineWidth = 6;
                             ctx.strokeText(judgment.text, judgmentLineX, 240);
-                            ctx.fillStyle = '#ffffff'; // Enforce monochrome white text response
+                            ctx.fillStyle = '#ffffff'; 
                             ctx.fillText(judgment.text, judgmentLineX, 240);
                             ctx.restore();
                         }
@@ -840,22 +960,31 @@ function gameLoop() {
             
             for(let i=0; i<4; i++) {
                 ctx.strokeStyle = 'rgba(255,255,255,0.04)';
-                ctx.strokeRect(i * colWidth, 110, colWidth, canvas.height - 110);
+                ctx.strokeRect(i * colWidth, 0, colWidth, canvas.height);
                 
                 ctx.fillStyle = 'rgba(0, 184, 148, 0.08)';
-                ctx.fillRect(i * colWidth + 4, canvas.height - 60, colWidth - 8, 25);
+                ctx.fillRect(i * colWidth + 4, canvas.height - 80, colWidth - 8, 25);
                 
                 ctx.save();
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
                 ctx.font = 'bold 15px Arial';
                 ctx.textAlign = 'center';
-                ctx.fillText(keyLabels[i], i * colWidth + (colWidth / 2), canvas.height - 20);
+                ctx.fillText(keyLabels[i], i * colWidth + (colWidth / 2), canvas.height - 30);
+                ctx.restore();
+            }
+
+            if (currentCombo >= 2) {
+                ctx.save();
+                ctx.textAlign = 'center';
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+                ctx.font = 'bold 55px Impact, Arial Black';
+                ctx.fillText(currentCombo, canvas.width / 2, 120);
                 ctx.restore();
             }
             
             activeNotes.forEach(note => {
                 let colLeftX = note.column * colWidth;
-                let yPos = (canvas.height - 45) - ((note.targetOffset - relativeTime) * 450);
+                let yPos = (canvas.height - 65) - ((note.targetOffset - relativeTime) * 450);
                 
                 if (note.processed) {
                     let judgment = getJudgmentData(note.hitOffset, note.missedEntirely);
@@ -863,19 +992,19 @@ function gameLoop() {
                     if (relativeTime <= displayOnset + 0.15) {
                         if (judgment.text !== '') {
                             ctx.save();
-                            ctx.fillStyle = 'rgba(255, 255, 255, 0.22)'; // Unified clean feedback backdrop split
-                            ctx.fillRect(colLeftX + 6, canvas.height - 55, colWidth - 12, 15);
+                            ctx.fillStyle = 'rgba(255, 255, 255, 0.22)'; 
+                            ctx.fillRect(colLeftX + 4, canvas.height - 75, colWidth - 8, 15);
                             ctx.font = 'bold 21px Segoe UI';
-                            ctx.fillStyle = '#ffffff'; // Enforce monochrome white text response
+                            ctx.fillStyle = '#ffffff'; 
                             ctx.textAlign = 'center';
-                            ctx.fillText(judgment.text, colLeftX + (colWidth / 2), canvas.height - 75);
+                            ctx.fillText(judgment.text, colLeftX + (colWidth / 2), canvas.height - 105);
                             ctx.restore();
                         }
                     }
                 } else {
-                    if (yPos > 110 && yPos < canvas.height) {
+                    if (yPos > 0 && yPos < canvas.height) {
                         ctx.fillStyle = '#00cec9';
-                        ctx.fillRect(colLeftX + 6, yPos - 12, colWidth - 12, 24);
+                        ctx.fillRect(colLeftX + 4, yPos - 12, colWidth - 8, 24);
                     }
                 }
             });
@@ -896,22 +1025,23 @@ function gameLoop() {
             }
         });
         
-        if (processedNotesCount >= totalRegisteredNotesCount && relativeTime >= (8 * BEAT_DURATION)) {
+        if (processedNotesCount >= totalRegisteredNotesCount && relativeTime >= (maxDurationBeats * BEAT_DURATION)) {
             endQuestion();
         }
         uiOverlay.innerHTML = ''; 
     }
 
-    // 2. Individual Question Results Dashboard Screen Frame Handler
+    // 2. Individual Round Results Dashboard Screen Frame Handler
     if (gameState === 'QUESTION_SCORE') {
         let timestampNow = performance.now();
+        let limitMaxScore = (currentMode === 'taiko') ? 10.0 : 100.0;
 
         if (rollingScoreDisplay < targetFinalScore) {
             let elapsed = timestampNow - lastTickTime;
             if (elapsed > 20) {
-                rollingScoreDisplay += 0.15; 
+                rollingScoreDisplay += (currentMode === 'taiko') ? 0.15 : 1.5; 
                 if (rollingScoreDisplay > targetFinalScore) rollingScoreDisplay = targetFinalScore;
-                playScoreTickSound(rollingScoreDisplay, 10.0);
+                playScoreTickSound(rollingScoreDisplay, limitMaxScore);
                 lastTickTime = timestampNow;
             }
         } else {
@@ -928,46 +1058,58 @@ function gameLoop() {
             drawFadedGameplayBackground(loopedSimulatedTime);
         }
 
-        ctx.save();
-        ctx.fillStyle = '#a4b0be';
-        ctx.font = 'bold 24px Arial, sans-serif';
-        ctx.fillText(`${currentQuestionIndex + 1} / 5`, 50, 65);
-        ctx.restore();
+        if (currentMode === 'taiko') {
+            ctx.save();
+            ctx.fillStyle = '#a4b0be';
+            ctx.font = 'bold 24px Arial, sans-serif';
+            ctx.fillText(`${currentQuestionIndex + 1} / 5`, 50, 65);
+            ctx.restore();
 
-        ctx.save();
-        ctx.textAlign = 'right';
-        ctx.font = '900 82px Helvetica Neue, Arial, sans-serif';
-        ctx.fillStyle = '#ffffff';
-        ctx.fillText(`${rollingScoreDisplay.toFixed(2)}`, canvas.width - 50, 130);
-        ctx.restore();
+            ctx.save();
+            ctx.textAlign = 'right';
+            ctx.font = '900 82px Helvetica Neue, Arial, sans-serif';
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(`${rollingScoreDisplay.toFixed(2)}`, canvas.width - 50, 130);
+            ctx.restore();
 
-        if (currentMode === 'taiko' && scoreFinishedRisingGlobal) {
             ctx.save();
             ctx.textAlign = 'right';
             ctx.font = 'bold 24px Microsoft JhengHei, sans-serif';
             ctx.fillStyle = '#a4b0be';
             ctx.fillText(currentActiveCommentary, canvas.width - 50, 185);
             ctx.restore();
+        } else {
+            // Phigros Vertical Screen Space Alignment Architecture
+            ctx.save();
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#00cec9';
+            ctx.font = 'bold 24px Segoe UI, sans-serif';
+            ctx.fillText('TRACK PERFORMANCE', canvas.width / 2, 160);
+            
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '900 74px Helvetica Neue, sans-serif';
+            ctx.fillText(`${rollingScoreDisplay.toFixed(2)}`, canvas.width / 2, 260);
+            
+            if (scoreFinishedRisingGlobal) {
+                ctx.fillStyle = '#747d8c';
+                ctx.font = 'bold 18px Microsoft JhengHei, sans-serif';
+                ctx.fillText(currentActiveCommentary, canvas.width / 2, 330);
+            }
+            ctx.restore();
         }
 
-        if (scoreFinishedRisingGlobal) {
+        if (scoreFinishedRisingGlobal && currentMode === 'taiko') {
             ctx.save();
             let displayTrendString = "";
             
             if (validHitsCount > 0) {
                 let trueMean = validHitsOffsetSum / validHitsCount; 
 
-                if (trueMean > 0.05) {
-                    displayTrendString = "太慢";
-                } else if (trueMean > 0.01) {
-                    displayTrendString = "稍慢";
-                } else if (trueMean < -0.05) {
-                    displayTrendString = "太快";
-                } else if (trueMean < -0.01) {
-                    displayTrendString = "稍快";
-                } else {
-                    displayTrendString = "完美";
-                }
+                if (trueMean > 0.05) displayTrendString = "太慢";
+                else if (trueMean > 0.01) displayTrendString = "稍慢";
+                else if (trueMean < -0.05) displayTrendString = "太快";
+                else if (trueMean < -0.01) displayTrendString = "稍快";
+                else displayTrendString = "完美";
             } else {
                 displayTrendString = "全數落空";
             }
@@ -981,7 +1123,7 @@ function gameLoop() {
         uiOverlay.innerHTML = ''; 
     }
 
-    // 3. Final Overall Summary Performance Screen Frame Handler
+    // 3. Final Overall Summary Performance Screen Frame Handler (Taiko Only)
     if (gameState === 'FINAL_SCOREBOARD') {
         let timestampNow = performance.now();
         let totalScoreFinishedRising = false;
@@ -1011,7 +1153,7 @@ function gameLoop() {
         ctx.fillText('/50', (canvas.width / 2) + (mainTextWidth / 2) + 5, 135);
         ctx.restore();
 
-        if (currentMode === 'taiko' && totalScoreFinishedRising) {
+        if (totalScoreFinishedRising) {
             ctx.save();
             ctx.textAlign = 'center';
             ctx.font = 'bold 26px Microsoft JhengHei, sans-serif';
