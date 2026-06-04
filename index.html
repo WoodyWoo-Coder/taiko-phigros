@@ -528,7 +528,6 @@ function selectMode(mode) {
         btnTaiko.classList.remove('selected');
         canvasWrapper.className = '';
         canvasWrapper.classList.add('wrapper-phigros');
-        // Ensure consistent non-narrow standard proportions for Phigros viewport
         canvas.width = 450;
         canvas.height = 580;
     }
@@ -889,10 +888,11 @@ function drawModernCanvasNextButton(textString) {
     let btnW = 180, btnH = 50;
     let btnX = canvas.width - btnW - 50;
     
-    // Positioned 1% below trend text line for '下一題' or 3% below for the requested '回主選單' adjustment
     let trendBaselineY = getMappedY(15);
-    let verticalOffsetModifier = (gameState === 'FINAL_SCOREBOARD') ? (canvas.height * 0.03) : (canvas.height * 0.01);
-    let btnY = trendBaselineY - verticalOffsetModifier - btnH; 
+    
+    // Add vertical offset to shift down when "回主選單" displays on the final scoreboard screen
+    let verticalOffsetModifier = (gameState === 'FINAL_SCOREBOARD') ? (canvas.height * 0.02) : 0;
+    let btnY = (trendBaselineY - btnH) + verticalOffsetModifier; 
 
     canvasNextBtnRect = { x: btnX, y: btnY, w: btnW, h: btnH };
 
