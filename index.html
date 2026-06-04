@@ -99,6 +99,7 @@
         }
         
         .wrapper-taiko { aspect-ratio: 800 / 520; max-width: 800px !important; }
+        /* Adjusted height perspective profile specifically optimized for desktop Phigros viewports */
         .wrapper-phigros { aspect-ratio: 450 / 580; max-width: 450px !important; }
         
         canvas {
@@ -246,6 +247,7 @@
                 max-width: 800px !important;
             }
             .wrapper-phigros { 
+                /* Mobile devices preserve standard scale profile to preserve thumb targeting area */
                 aspect-ratio: 450 / 680 !important; 
                 max-width: 94vw !important;
             }
@@ -540,9 +542,20 @@ function playHitSound(column = null) {
     warmupAudioContext();
     if (column !== null && drumBuffers[column]) {
         const source = audioCtx.createBufferSource();
+        const gainNode = audioCtx.createGain();
+        
         source.buffer = drumBuffers[column];
         if (column === 3) source.playbackRate.setValueAtTime(0.8, audioCtx.currentTime);
-        source.connect(audioCtx.destination);
+        
+        // Define exact individual target volumes per specifications
+        let targetVolume = 1.0; // Column 0 default: Max volume
+        if (column === 1) targetVolume = 0.9; // Snare drum
+        if (column === 2) targetVolume = 0.8; // Hihat
+        if (column === 3) targetVolume = 0.9; // Cymbal
+        
+        gainNode.gain.setValueAtTime(targetVolume, audioCtx.currentTime);
+        source.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
         source.start(0);
         return;
     }
@@ -579,8 +592,11 @@ function scheduleHihatSample(startTime) {
     warmupAudioContext();
     if (drumBuffers[2]) {
         const source = audioCtx.createBufferSource();
+        const gainNode = audioCtx.createGain();
         source.buffer = drumBuffers[2];
-        source.connect(audioCtx.destination);
+        gainNode.gain.setValueAtTime(0.8, startTime); // Maintain matching column volume hierarchy
+        source.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
         source.start(startTime);
     }
 }
@@ -688,6 +704,7 @@ function selectMode(mode) {
         canvasWrapper.className = '';
         canvasWrapper.classList.add('wrapper-phigros');
         canvas.width = 450;
+        // Standardized internal canvas dimension for proportional rendering asset scales
         canvas.height = 580;
     }
     
@@ -1116,6 +1133,10 @@ function gameLoop() {
     let countdownEndTime = 4 * BEAT_DURATION;
     let mobile = isMobileDevice();
 
+    // Dynamically calculate baseline threshold position for Phigros Mode 
+    // Shifted significantly higher up on computer mode (height - 110) to bypass scrolling fold limits
+    let phigrosBaselineY = mobile ? (canvas.height - 65) : (canvas.height - 110);
+
     // 1. Gameplay Active Interface
     if (gameState === 'TIMELINE_RUNNING') {
         ctx.save();
@@ -1154,7 +1175,7 @@ function gameLoop() {
             }
         }
 
-        // Dedicated 1.10 Count-In Real-time Sequence Grid Evaluator
+        // Dedicated Count-In Real-time Sequence Grid Evaluator
         if (relativeTime < countdownEndTime) {
             let calculatedSubBeat = Math.floor(relativeTime / SUB_BEAT_DURATION);
             if (calculatedSubBeat !== subBeatIndexTracker && calculatedSubBeat < 16) {
@@ -1162,22 +1183,28 @@ function gameLoop() {
                 let audioClockTime = audioCtx.currentTime;
                 
                 if (currentMode === 'phigros') {
-                    // Triggers the Hi-Hat sample strictly on the 1st, 5th, 9th, and 13th sub-beats (1 0 0 0 grid layout)
+                    // Triggers Hi-Hat sample strictly on 1st, 5th, 9th, and 13th sub-beats (1 0 0 0 grid layout)
                     if (calculatedSubBeat % 4 === 0) {
                         scheduleHihatSample(audioClockTime);
                     }
                     
-                    // Anchor Hook: BGM starts exactly at the 10th sub-beat (index 9) + 0.05 seconds delay
+                    // Anchor Hook: BGM starts exactly at 10th sub-beat (index 9) + 0.05 seconds delay
+                    // Incorporates a 1.5x gain node amplification constraint profile
                     if (calculatedSubBeat === 9 && backgroundMusicBuffer && !bgmStarted) {
                         bgmStarted = true;
                         warmupAudioContext();
                         bgmSourceNode = audioCtx.createBufferSource();
+                        const bgmGainNode = audioCtx.createGain();
+                        
                         bgmSourceNode.buffer = backgroundMusicBuffer;
-                        bgmSourceNode.connect(audioCtx.destination);
+                        bgmGainNode.gain.setValueAtTime(1.5, audioClockTime + 0.05);
+                        
+                        bgmSourceNode.connect(bgmGainNode);
+                        bgmGainNode.connect(audioCtx.destination);
                         bgmSourceNode.start(audioClockTime + 0.05);
                     }
                 } else {
-                    // Standard unchanged countdown fallback sequence dedicated to Taiko Mode
+                    // Standard countdown fallback sequence dedicated to Taiko Mode
                     if (calculatedSubBeat === 0) scheduleBeep(470, audioClockTime, 0.12, 1);
                     else if (calculatedSubBeat === 4) scheduleBeep(470, audioClockTime, 0.12, 2);
                     else if (calculatedSubBeat === 8) scheduleBeep(470, audioClockTime, 0.12, 3);
@@ -1271,12 +1298,12 @@ function gameLoop() {
                 ctx.strokeStyle = 'rgba(255,255,255,0.04)';
                 ctx.strokeRect(i * colWidth, 0, colWidth, canvas.height);
                 ctx.fillStyle = 'rgba(0, 184, 148, 0.08)';
-                ctx.fillRect(i * colWidth + 4, canvas.height - 80, colWidth - 8, 25);
+                ctx.fillRect(i * colWidth + 4, phigrosBaselineY - 15, colWidth - 8, 25);
                 ctx.save();
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
                 ctx.font = 'bold 16px "Futura", "Century Gothic", Arial';
                 ctx.textAlign = 'center';
-                ctx.fillText(keyLabels[i], i * colWidth + (colWidth / 2), canvas.height - 30);
+                ctx.fillText(keyLabels[i], i * colWidth + (colWidth / 2), phigrosBaselineY + 35);
                 ctx.restore();
             }
             if (currentCombo >= 2) {
@@ -1289,7 +1316,7 @@ function gameLoop() {
             }
             activeNotes.forEach(note => {
                 let colLeftX = note.column * colWidth;
-                let yPos = (canvas.height - 65) - ((note.targetOffset - relativeTime) * 450);
+                let yPos = phigrosBaselineY - ((note.targetOffset - relativeTime) * 450);
                 if (note.processed) {
                     let judgment = getJudgmentData(note.hitOffset, note.missedEntirely);
                     let displayOnset = note.hitTimestamp || note.targetOffset + WINDOW_MAX;
@@ -1297,16 +1324,16 @@ function gameLoop() {
                         if (judgment.text !== '') {
                             ctx.save();
                             ctx.fillStyle = 'rgba(255, 255, 255, 0.22)'; 
-                            ctx.fillRect(colLeftX + 4, canvas.height - 75, colWidth - 8, 15);
+                            ctx.fillRect(colLeftX + 4, phigrosBaselineY - 10, colWidth - 8, 15);
                             ctx.font = 'bold 22px "Microsoft JhengHei", "Segoe UI", sans-serif';
                             ctx.fillStyle = '#ffffff'; 
                             ctx.textAlign = 'center';
-                            ctx.fillText(judgment.text, colLeftX + (colWidth / 2), canvas.height - 105);
+                            ctx.fillText(judgment.text, colLeftX + (colWidth / 2), phigrosBaselineY - 40);
                             ctx.restore();
                         }
                     }
                 } else {
-                    if (yPos > 0 && yPos < canvas.height) {
+                    if (yPos > 0 && yPos < phigrosBaselineY + 20) {
                         ctx.fillStyle = '#00cec9';
                         ctx.fillRect(colLeftX + 4, yPos - 12, colWidth - 8, 24);
                     }
@@ -1415,25 +1442,25 @@ function gameLoop() {
             ctx.textAlign = 'center';
             ctx.fillStyle = '#00cec9';
             ctx.font = 'bold 24px "Futura", "Segoe UI", sans-serif';
-            ctx.fillText('TRACK PERFORMANCE', canvas.width / 2, 120);
+            ctx.fillText('TRACK PERFORMANCE', canvas.width / 2, 110);
             
             ctx.fillStyle = '#ffffff';
             ctx.font = '900 70px "Futura", "Helvetica Neue", sans-serif';
-            ctx.fillText(`${rollingScoreDisplay.toFixed(2)}`, canvas.width / 2, 230);
+            ctx.fillText(`${rollingScoreDisplay.toFixed(2)}`, canvas.width / 2, 210);
             
-            // Cleanly measure score width in Phigros mode to layout the appended smaller /100 metric tag
+            // Measure score width in Phigros mode to layout the appended smaller /100 metric tag
             let phigrosTextWidth = ctx.measureText(`${rollingScoreDisplay.toFixed(2)}`).width;
             ctx.save();
             ctx.textAlign = 'left';
             ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
             ctx.font = 'bold 32px "Futura", sans-serif';
-            ctx.fillText('/100', (canvas.width / 2) + (phigrosTextWidth / 2) + 6, 222);
+            ctx.fillText('/100', (canvas.width / 2) + (phigrosTextWidth / 2) + 6, 202);
             ctx.restore();
             
             if (scoreFinishedRisingGlobal) {
                 ctx.fillStyle = '#747d8c';
                 ctx.font = 'bold 18px "Microsoft JhengHei", sans-serif';
-                ctx.fillText(currentActiveCommentary, canvas.width / 2, 320);
+                ctx.fillText(currentActiveCommentary, canvas.width / 2, 290);
             }
             ctx.restore();
         }
@@ -1487,7 +1514,7 @@ function gameLoop() {
         ctx.fillStyle = '#ffffff';
         ctx.fillText(`${rollingScoreDisplay.toFixed(2)}`, canvas.width / 2, 145);
         
-        // Dynamically measure score size to cleanly align the smaller /100 indicator label
+        // Dynamically measure score size to align the smaller /100 indicator label
         let mainTextWidth = ctx.measureText(`${rollingScoreDisplay.toFixed(2)}`).width;
         ctx.textAlign = 'left';
         ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
