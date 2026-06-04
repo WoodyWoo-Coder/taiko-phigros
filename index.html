@@ -235,7 +235,7 @@
     <div id="menu">
         <h1>擊擊復擊擊</h1>
         <div class="credits">製作者: 郭覲德 林映澄</div>
-        <div class="version-tag">Version 1.04</div>
+        <div class="version-tag">Version 1.05</div>
         
         <div id="tutorial-panel">
             <h3>玩法教學 (Tutorial)</h3>
@@ -520,12 +520,17 @@ function selectMode(mode) {
         btnPhigros.classList.remove('selected');
         canvasWrapper.className = '';
         canvasWrapper.classList.add('wrapper-taiko');
+        canvas.width = 800;
+        canvas.height = 520;
     } else {
         document.body.classList.remove('taiko-active-mode');
         btnPhigros.classList.add('selected');
         btnTaiko.classList.remove('selected');
         canvasWrapper.className = '';
         canvasWrapper.classList.add('wrapper-phigros');
+        // Ensure consistent non-narrow standard proportions for Phigros viewport
+        canvas.width = 450;
+        canvas.height = 580;
     }
     checkOrientation();
     if (audioLoaded) {
@@ -747,11 +752,9 @@ function handleHit(forcedColumn = null) {
     }
 }
 
-// Global window event listeners instead of body blocking to guarantee smooth scroll detection
 window.addEventListener('wheel', (e) => {}, { passive: true });
 window.addEventListener('touchmove', (e) => {
     if (gameState === 'QUESTION_SCORE' || gameState === 'FINAL_SCOREBOARD') {
-        // Explicitly bubbling up to trigger document scrolling naturally
         return true;
     }
 }, { passive: true });
@@ -886,9 +889,10 @@ function drawModernCanvasNextButton(textString) {
     let btnW = 180, btnH = 50;
     let btnX = canvas.width - btnW - 50;
     
-    // Positioned exactly 1% canvas height height above the trend status baseline
+    // Positioned 1% below trend text line for '下一題' or 3% below for the requested '回主選單' adjustment
     let trendBaselineY = getMappedY(15);
-    let btnY = trendBaselineY - (canvas.height * 0.01) - btnH; 
+    let verticalOffsetModifier = (gameState === 'FINAL_SCOREBOARD') ? (canvas.height * 0.03) : (canvas.height * 0.01);
+    let btnY = trendBaselineY - verticalOffsetModifier - btnH; 
 
     canvasNextBtnRect = { x: btnX, y: btnY, w: btnW, h: btnH };
 
@@ -1017,7 +1021,6 @@ function gameLoop() {
                             ctx.strokeStyle = '#000000';
                             ctx.lineWidth = 6;
                             
-                            // Optimized sizing and downward shifts exclusively for phone taiko viewports
                             if (mobile) {
                                 ctx.font = `900 29px "Impact", "Arial Black", "Microsoft JhengHei"`;
                                 ctx.strokeText(judgment.text, judgmentLineX, trackBaseY - 64);
@@ -1049,8 +1052,8 @@ function gameLoop() {
                 ctx.fillStyle = 'rgba(0, 184, 148, 0.08)';
                 ctx.fillRect(i * colWidth + 4, canvas.height - 80, colWidth - 8, 25);
                 ctx.save();
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
-                ctx.font = 'bold 15px "Futura", "Century Gothic", Arial';
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+                ctx.font = 'bold 16px "Futura", "Century Gothic", Arial';
                 ctx.textAlign = 'center';
                 ctx.fillText(keyLabels[i], i * colWidth + (colWidth / 2), canvas.height - 30);
                 ctx.restore();
@@ -1058,7 +1061,7 @@ function gameLoop() {
             if (currentCombo >= 2) {
                 ctx.save();
                 ctx.textAlign = 'center';
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
                 ctx.font = 'bold 55px "Impact", "Futura"';
                 ctx.fillText(currentCombo, canvas.width / 2, 120);
                 ctx.restore();
@@ -1074,7 +1077,7 @@ function gameLoop() {
                             ctx.save();
                             ctx.fillStyle = 'rgba(255, 255, 255, 0.22)'; 
                             ctx.fillRect(colLeftX + 4, canvas.height - 75, colWidth - 8, 15);
-                            ctx.font = 'bold 21px "Futura", "Segoe UI"';
+                            ctx.font = 'bold 22px "Microsoft JhengHei", "Segoe UI", sans-serif';
                             ctx.fillStyle = '#ffffff'; 
                             ctx.textAlign = 'center';
                             ctx.fillText(judgment.text, colLeftX + (colWidth / 2), canvas.height - 105);
@@ -1196,13 +1199,13 @@ function gameLoop() {
             ctx.fillText('TRACK PERFORMANCE', canvas.width / 2, 120);
             
             ctx.fillStyle = '#ffffff';
-            ctx.font = '900 74px "Futura", "Helvetica Neue", sans-serif';
-            ctx.fillText(`${rollingScoreDisplay.toFixed(2)}`, canvas.width / 2, 220);
+            ctx.font = '900 70px "Futura", "Helvetica Neue", sans-serif';
+            ctx.fillText(`${rollingScoreDisplay.toFixed(2)}`, canvas.width / 2, 230);
             
             if (scoreFinishedRisingGlobal) {
                 ctx.fillStyle = '#747d8c';
                 ctx.font = 'bold 18px "Microsoft JhengHei", sans-serif';
-                ctx.fillText(currentActiveCommentary, canvas.width / 2, 290);
+                ctx.fillText(currentActiveCommentary, canvas.width / 2, 320);
             }
             ctx.restore();
         }
