@@ -49,6 +49,43 @@
         .mode-row { display: flex; align-items: center; gap: 12px; }
         .orientation-hint { font-size: 14px; color: #a4b0be; font-weight: bold; }
         
+        /* Song Selector Styles */
+        #song-selector {
+            width: 100%;
+            max-width: 500px;
+            display: none;
+            flex-direction: column;
+            gap: 12px;
+            margin: 15px 0;
+        }
+        .song-card {
+            background: #1e1e24;
+            border: 2px solid #2f3542;
+            border-radius: 8px;
+            padding: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            text-align: left;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .song-card.unlocked:hover {
+            border-color: #00cec9;
+            background: #25252d;
+        }
+        .song-card.locked {
+            opacity: 0.5;
+            cursor: not-allowed;
+            border-style: dashed;
+        }
+        .song-info h4 { margin: 0 0 4px 0; font-size: 18px; color: #ffffff; }
+        .song-info p { margin: 0; font-size: 13px; color: #747d8c; }
+        .song-card.unlocked h4 { color: #eccc68; }
+        .song-status { font-weight: bold; font-size: 14px; }
+        .song-card.unlocked .song-status { color: #0be881; }
+        .song-card.locked .song-status { color: #ff4757; }
+
         #canvas-wrapper {
             position: relative;
             width: 100%;
@@ -235,7 +272,7 @@
     <div id="menu">
         <h1>擊擊復擊擊</h1>
         <div class="credits">製作者: 郭覲德 林映澄</div>
-        <div class="version-tag">Version 1.05</div>
+        <div class="version-tag">Version 1.10</div>
         
         <div id="tutorial-panel">
             <h3>玩法教學 (Tutorial)</h3>
@@ -254,6 +291,30 @@
             <div class="mode-row">
                 <button id="btn-phigros" class="btn" onclick="selectMode('phigros')">音遊模式</button>
                 <span class="orientation-hint">💡 (建議使用直螢幕)</span>
+            </div>
+        </div>
+
+        <div id="song-selector">
+            <div class="song-card unlocked" onclick="selectSong(1)">
+                <div class="song-info">
+                    <h4>刻在我心底的名字</h4>
+                    <p>BPM: 67 | 難度: Hard</p>
+                </div>
+                <div class="song-status">已解鎖 (Play)</div>
+            </div>
+            <div class="song-card locked">
+                <div class="song-info">
+                    <h4>Bonus Track 02</h4>
+                    <p>BPM: 120 | 難度: Insane</p>
+                </div>
+                <div class="song-status">🔒 未解鎖</div>
+            </div>
+            <div class="song-card locked">
+                <div class="song-info">
+                    <h4>Bonus Track 03</h4>
+                    <p>BPM: 140 | 難度: Phigros</p>
+                </div>
+                <div class="song-status">🔒 未解鎖</div>
             </div>
         </div>
         
@@ -275,6 +336,7 @@ const menu = document.getElementById('menu');
 const canvasWrapper = document.getElementById('canvas-wrapper');
 const actionBtnContainer = document.getElementById('action-btn-container');
 const audioStatusDiv = document.getElementById('audio-status');
+const songSelector = document.getElementById('song-selector');
 
 const btnTaiko = document.getElementById('btn-taiko');
 const btnPhigros = document.getElementById('btn-phigros');
@@ -285,16 +347,70 @@ const guardSvg = document.getElementById('guard-svg');
 const guardTitle = document.getElementById('guard-title');
 const guardDesc = document.getElementById('guard-desc');
 
-// --- ENGINE CONSTANTS (60 BPM) ---
-const BPM = 60;
-const BEAT_DURATION = 60 / BPM; 
-const SUB_BEAT_DURATION = BEAT_DURATION / 4; 
+// --- ENGINE VARIABLES (Dynamic BPM Setup) ---
+let currentBPM = 60;
+let BEAT_DURATION = 60 / currentBPM; 
+let SUB_BEAT_DURATION = BEAT_DURATION / 4; 
 const WINDOW_MAX = 0.125; 
 
 const BEAT_PATTERNS = {
     1: [1, 0, 0, 0], 2: [1, 0, 1, 0], 3: [1, 1, 1, 1], 4: [1, 0, 1, 1],
     5: [1, 1, 1, 0], 6: [1, 1, 0, 1], 7: [1, 1, 0, 0], 8: [1, 0, 0, 1]
 };
+
+// ========================================================
+// 67 BPM Perfect Drum Sequencer Data Source Arrays
+// ========================================================
+const bassA = [1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0]; 
+const bassB = [0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0]; 
+const bassC = [1,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0]; 
+const bassD = [1,0,1,0,0,0,0,0,1,0,1,0,0,0,0,0]; 
+const bassE = [1,0,1,0,0,0,0,0,1,0,0,1,0,0,0,0]; 
+const bassFinal = [1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0]; 
+
+let rawBassPattern = [];
+for(let i=0; i<7; i++) rawBassPattern = rawBassPattern.concat(bassA); 
+rawBassPattern = rawBassPattern.concat(bassB);                         
+for(let i=0; i<2; i++) rawBassPattern = rawBassPattern.concat(bassC); 
+rawBassPattern = rawBassPattern.concat(bassD).concat(bassE);           
+for(let i=0; i<2; i++) rawBassPattern = rawBassPattern.concat(bassC); 
+rawBassPattern = rawBassPattern.concat(bassFinal);                     
+rawBassPattern = rawBassPattern.concat([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]); 
+
+const snareA = [0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0]; 
+const snareB = [0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0]; 
+const snareC = [0,0,0,0,1,0,0,0,0,1,1,0,1,0,1,0]; 
+
+let rawSnarePattern = [];
+for(let i=0; i<7; i++) rawSnarePattern = rawSnarePattern.concat(snareA); 
+rawSnarePattern = rawSnarePattern.concat(snareB);                         
+for(let i=0; i<3; i++) rawSnarePattern = rawSnarePattern.concat(snareA); 
+rawSnarePattern = rawSnarePattern.concat(snareC);                         
+for(let i=0; i<2; i++) rawSnarePattern = rawSnarePattern.concat(snareA); 
+for(let i=0; i<2; i++) rawSnarePattern = rawSnarePattern.concat([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]); 
+
+const hhStd = [1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0]; 
+const hhV1  = [1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,1]; 
+const hhV2  = [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]; 
+const hhNo1 = [0,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0]; 
+const hhV3  = [1,0,1,0,1,0,1,0,1,0,0,0,0,0,0,0]; 
+
+let rawHihatPattern = [];
+for(let i=0; i<6; i++) rawHihatPattern = rawHihatPattern.concat(hhStd);
+rawHihatPattern = rawHihatPattern.concat(hhV1).concat(hhV2);
+rawHihatPattern = rawHihatPattern.concat(hhNo1).concat(hhStd).concat(hhStd);
+rawHihatPattern = rawHihatPattern.concat(hhV3);
+rawHihatPattern = rawHihatPattern.concat(hhNo1).concat(hhStd);
+const hhFinal = [1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0];
+rawHihatPattern = rawHihatPattern.concat(hhFinal);
+rawHihatPattern = rawHihatPattern.concat([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]);
+
+let rawCymbalPattern = new Array(256).fill(0);
+rawCymbalPattern[62] = 1;  
+rawCymbalPattern[111] = 1; 
+rawCymbalPattern[128] = 1; 
+rawCymbalPattern[188] = 1; 
+rawCymbalPattern[192] = 1; 
 
 // --- COMMENTARY POOLS ---
 const INDIVIDUAL_COMMENTS = {
@@ -333,6 +449,8 @@ function getCommentaryByPoints(score, isOverall = false) {
 // --- AUDIO SYNTHESIS & FILE LOADING ---
 let audioCtx = null;
 const drumBuffers = { 0: null, 1: null, 2: null, 3: null };
+let backgroundMusicBuffer = null;
+let bgmSourceNode = null;
 let audioLoaded = false;
 
 const DRUM_URLS = {
@@ -341,6 +459,8 @@ const DRUM_URLS = {
     2: 'https://raw.githubusercontent.com/scratchfoundation/scratch-audio/develop/sound-files/drums/HiHatClosed(1)_22k.wav',
     3: 'https://raw.githubusercontent.com/scratchfoundation/scratch-audio/develop/sound-files/drums/HiHatOpen(2)_22k.wav'
 };
+
+const BGM_URL = 'https://raw.githubusercontent.com/WoodyWoo-Coder/phigros-test/main/name.wav';
 
 function warmupAudioContext() {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -351,9 +471,10 @@ async function loadDrumSounds() {
     if (audioLoaded) return;
     warmupAudioContext();
     audioStatusDiv.style.color = '#ffd32a';
-    audioStatusDiv.innerText = '⏳ 正在為您加載音遊專屬打擊樂器組...';
+    audioStatusDiv.innerText = '⏳ 正在為您加載音遊打擊樂器組與背景音樂...';
     
     try {
+        // Load Instrument Samples
         const promises = Object.keys(DRUM_URLS).map(async (key) => {
             const response = await fetch(DRUM_URLS[key]);
             const arrayBuffer = await response.arrayBuffer();
@@ -365,20 +486,45 @@ async function loadDrumSounds() {
             });
         });
         
-        await Promise.all(promises);
+        // Load Phigros Background Music
+        const bgmPromise = (async () => {
+            const response = await fetch(BGM_URL);
+            const arrayBuffer = await response.arrayBuffer();
+            return new Promise((resolve) => {
+                audioCtx.decodeAudioData(arrayBuffer, (buffer) => {
+                    backgroundMusicBuffer = buffer;
+                    resolve();
+                });
+            });
+        })();
+
+        await Promise.all([...promises, bgmPromise]);
         audioLoaded = true;
         audioStatusDiv.style.color = '#0be881';
-        audioStatusDiv.innerText = '✅ 樂器打擊音效載入完成！請選擇遊戲模式';
-        if (currentMode) {
-            btnStart.disabled = false;
-            btnStart.style.background = '#00cec9';
-            btnStart.style.color = '#0c0c0e';
-        }
+        audioStatusDiv.innerText = '✅ 樂器打擊音效與背景音樂載入完成！請選擇遊戲模式';
+        updateStartButtonState();
     } catch (error) {
+        console.error("Audio Load Error:", error);
         audioStatusDiv.style.color = '#ff4757';
         audioStatusDiv.innerText = '⚠️ 音檔加載失敗，將使用系統內建合成器替代';
         audioLoaded = true; 
-        if (currentMode) btnStart.disabled = false;
+        updateStartButtonState();
+    }
+}
+
+function updateStartButtonState() {
+    if (currentMode === 'taiko') {
+        btnStart.disabled = false;
+        btnStart.style.background = '#00cec9';
+        btnStart.style.color = '#0c0c0e';
+    } else if (currentMode === 'phigros' && selectedSongId !== null) {
+        btnStart.disabled = false;
+        btnStart.style.background = '#00cec9';
+        btnStart.style.color = '#0c0c0e';
+    } else {
+        btnStart.disabled = true;
+        btnStart.style.background = '#2f3542';
+        btnStart.style.color = '#57606f';
     }
 }
 
@@ -391,7 +537,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
 function playHitSound(column = null) {
     warmupAudioContext();
-    if (currentMode === 'phigros' && column !== null && drumBuffers[column]) {
+    if (column !== null && drumBuffers[column]) {
         const source = audioCtx.createBufferSource();
         source.buffer = drumBuffers[column];
         if (column === 3) source.playbackRate.setValueAtTime(0.8, audioCtx.currentTime);
@@ -412,24 +558,30 @@ function playHitSound(column = null) {
     osc.stop(audioCtx.currentTime + 0.25);
 }
 
-function scheduleBeep(frequency, startTime, duration, step) {
+// System Synthesizer Fallback for Taiko Countdowns
+function scheduleBeep(freq, startTime, duration, countNum) {
     warmupAudioContext();
     const osc = audioCtx.createOscillator();
     const gainNode = audioCtx.createGain();
-    osc.type = 'square'; 
-    osc.frequency.setValueAtTime(frequency, startTime);
-    gainNode.gain.setValueAtTime(0.2, startTime); 
-    if (step === 4) {
-        gainNode.gain.setValueAtTime(0.2, startTime);
-        gainNode.gain.linearRampToValueAtTime(0.0, startTime + 0.75);
-    } else {
-        gainNode.gain.setValueAtTime(0.2, startTime + duration - 0.01);
-        gainNode.gain.linearRampToValueAtTime(0.0, startTime + duration);
-    }
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, startTime);
+    gainNode.gain.setValueAtTime(0.50, startTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
     osc.connect(gainNode);
     gainNode.connect(audioCtx.destination);
     osc.start(startTime);
-    osc.stop(startTime + (step === 4 ? 0.75 : duration));
+    osc.stop(startTime + duration);
+}
+
+// Scheduled Countdown Hit sound mapping for 1.10 sample consistency
+function scheduleHihatSample(startTime) {
+    warmupAudioContext();
+    if (drumBuffers[2]) {
+        const source = audioCtx.createBufferSource();
+        source.buffer = drumBuffers[2];
+        source.connect(audioCtx.destination);
+        source.start(startTime);
+    }
 }
 
 function playScoreTickSound(val, maxVal) {
@@ -456,13 +608,15 @@ for (let i = 1; i <= 6; i++) {
 
 // --- STATE MANAGEMENT ---
 let currentMode = '';
+let selectedSongId = null;
 let gameState = 'START'; 
 let currentQuestionIndex = 0;
 let questions = [];
 let questionScores = [];
 let activeNotes = [];
 let timelineStartTime = 0; 
-let lastCountdownBeatRegistered = -1;
+let subBeatIndexTracker = -1;
+let bgmStarted = false;
 let currentCombo = 0; 
 let rollingScoreDisplay = 0.0;
 let targetFinalScore = 0.0;
@@ -515,34 +669,56 @@ function selectMode(mode) {
     currentMode = mode;
     warmupAudioContext();
     if (mode === 'taiko') {
+        currentBPM = 60;
         document.body.classList.add('taiko-active-mode');
         btnTaiko.classList.add('selected');
         btnPhigros.classList.remove('selected');
+        songSelector.style.display = 'none';
         canvasWrapper.className = '';
         canvasWrapper.classList.add('wrapper-taiko');
         canvas.width = 800;
         canvas.height = 520;
+        selectedSongId = null;
     } else {
         document.body.classList.remove('taiko-active-mode');
         btnPhigros.classList.add('selected');
         btnTaiko.classList.remove('selected');
+        songSelector.style.display = 'flex';
         canvasWrapper.className = '';
         canvasWrapper.classList.add('wrapper-phigros');
         canvas.width = 450;
         canvas.height = 580;
     }
+    
+    BEAT_DURATION = 60 / currentBPM;
+    SUB_BEAT_DURATION = BEAT_DURATION / 4;
+    
     checkOrientation();
-    if (audioLoaded) {
-        btnStart.disabled = false;
-        btnStart.style.background = '#00cec9';
-        btnStart.style.color = '#0c0c0e';
-    } else {
+    updateStartButtonState();
+    
+    if (!audioLoaded) {
         audioStatusDiv.innerText = '⏳ 模式已選，請等待音檔載入完成後即可開始遊戲...';
+    }
+}
+
+function selectSong(songId) {
+    if (songId === 1) {
+        selectedSongId = 1;
+        currentBPM = 67;
+        BEAT_DURATION = 60 / currentBPM;
+        SUB_BEAT_DURATION = BEAT_DURATION / 4;
+        
+        // Highlight selection visually
+        document.querySelectorAll('.song-card').forEach(card => card.style.borderColor = '#2f3542');
+        document.querySelector('.song-card.unlocked').style.borderColor = '#00cec9';
+        updateStartButtonState();
     }
 }
 
 function startGame() {
     if (!currentMode || !audioLoaded) return;
+    if (currentMode === 'phigros' && selectedSongId === null) return;
+    
     menu.style.display = 'none';
     canvasWrapper.style.display = 'block';
     currentCombo = 0; 
@@ -571,11 +747,7 @@ function generateSession() {
             questions.push(patternCombination);
         }
     } else {
-        let phigrosTrackBeats = [];
-        for (let i = 0; i < 16; i++) {
-            phigrosTrackBeats.push(Math.floor(Math.random() * 6) + 1);
-        }
-        questions.push(phigrosTrackBeats);
+        questions.push(rawBassPattern);
     }
 }
 
@@ -600,7 +772,8 @@ function buildTimelineForQuestion() {
     scoreFinishedRisingGlobal = false;
     actionBtnContainer.innerHTML = '';
     timelineStartTime = performance.now() / 1000;
-    lastCountdownBeatRegistered = -1;
+    subBeatIndexTracker = -1;
+    bgmStarted = false;
     activeNotes = [];
     validHitsOffsetSum = 0;
     validHitsCount = 0;
@@ -616,11 +789,10 @@ function buildTimelineForQuestion() {
             for (let subIdx = 0; subIdx < 4; subIdx++) {
                 if (subBeatMask[subIdx] === 1) {
                     let targetTime = (4 * BEAT_DURATION) + (beatIdx * BEAT_DURATION) + (subIdx * SUB_BEAT_DURATION);
-                    let randomizedColumn = Math.floor(Math.random() * 4); 
                     activeNotes.push({
                         id: noteIdCounter++, 
                         targetOffset: targetTime,
-                        column: randomizedColumn,
+                        column: Math.floor(Math.random() * 4),
                         patternOrigin: patternNum,
                         hitScore: null,
                         hitOffset: null,
@@ -631,30 +803,36 @@ function buildTimelineForQuestion() {
             }
         }
     } else {
-        let trackBeatsArray = questions[0]; 
-        trackBeatsArray.forEach((patternNum, beatIdx) => {
-            let subBeatMask = BEAT_PATTERNS[patternNum] || [1, 0, 0, 0];
-            for (let subIdx = 0; subIdx < 4; subIdx++) {
-                if (subBeatMask[subIdx] === 1) {
-                    let targetTime = (4 * BEAT_DURATION) + (beatIdx * BEAT_DURATION) + (subIdx * SUB_BEAT_DURATION);
-                    let randomizedColumn = Math.floor(Math.random() * 4);
-                    activeNotes.push({
-                        id: noteIdCounter++,
-                        targetOffset: targetTime,
-                        column: randomizedColumn,
-                        patternOrigin: patternNum,
-                        hitScore: null,
-                        hitOffset: null,
-                        processed: false,
-                        missedEntirely: false
-                    });
-                }
+        let countInPeriod = 4 * BEAT_DURATION;
+        for (let s = 0; s < 256; s++) {
+            let itemTargetOffset = countInPeriod + (s * SUB_BEAT_DURATION);
+            
+            // Track 0: Bass Drum
+            if (rawBassPattern[s] === 1) {
+                activeNotes.push({ id: noteIdCounter++, targetOffset: itemTargetOffset, column: 0, hitScore: null, hitOffset: null, processed: false, missedEntirely: false });
             }
-        });
+            // Track 1: Snare Drum
+            if (rawSnarePattern[s] === 1) {
+                activeNotes.push({ id: noteIdCounter++, targetOffset: itemTargetOffset, column: 1, hitScore: null, hitOffset: null, processed: false, missedEntirely: false });
+            }
+            // Track 2: Hi-Hat
+            if (rawHihatPattern[s] === 1) {
+                activeNotes.push({ id: noteIdCounter++, targetOffset: itemTargetOffset, column: 2, hitScore: null, hitOffset: null, processed: false, missedEntirely: false });
+            }
+            // Track 3: Cymbal
+            if (rawCymbalPattern[s] === 1) {
+                activeNotes.push({ id: noteIdCounter++, targetOffset: itemTargetOffset, column: 3, hitScore: null, hitOffset: null, processed: false, missedEntirely: false });
+            }
+        }
     }
 }
 
 function endQuestion() {
+    if (bgmSourceNode) {
+        try { bgmSourceNode.stop(); } catch(e){}
+        bgmSourceNode = null;
+    }
+
     gameState = 'QUESTION_SCORE';
     currentCombo = 0; 
     scoreFinishedRisingGlobal = false;
@@ -703,12 +881,15 @@ function showGrandScoreboard() {
 function resetToHomeMenu() {
     gameState = 'START';
     currentMode = '';
+    selectedSongId = null;
     btnTaiko.classList.remove('selected');
     btnPhigros.classList.remove('selected');
+    document.querySelectorAll('.song-card').forEach(card => card.style.borderColor = '#2f3542');
     btnStart.disabled = true;
     btnStart.style.background = '#2f3542';
     btnStart.style.color = '#57606f';
     canvasWrapper.style.display = 'none';
+    songSelector.style.display = 'none';
     actionBtnContainer.innerHTML = '';
     uiOverlay.innerHTML = '';
     menu.style.display = 'flex';
@@ -889,8 +1070,6 @@ function drawModernCanvasNextButton(textString) {
     let btnX = canvas.width - btnW - 50;
     
     let trendBaselineY = getMappedY(15);
-    
-    // Add vertical offset to shift down when "回主選單" displays on the final scoreboard screen
     let verticalOffsetModifier = (gameState === 'FINAL_SCOREBOARD') ? (canvas.height * 0.02) : 0;
     let btnY = (trendBaselineY - btnH) + verticalOffsetModifier; 
 
@@ -969,15 +1148,35 @@ function gameLoop() {
             }
         }
 
+        // Dedicated 1.10 Count-In Real-time Sequence Grid Evaluator
         if (relativeTime < countdownEndTime) {
-            let currentCountdownBeat = Math.floor(relativeTime / BEAT_DURATION);
-            if (currentCountdownBeat !== lastCountdownBeatRegistered && currentCountdownBeat < 4) {
-                lastCountdownBeatRegistered = currentCountdownBeat;
-                let ctxTime = audioCtx.currentTime;
-                if (currentCountdownBeat === 0) scheduleBeep(470, ctxTime, 0.12, 1);
-                else if (currentCountdownBeat === 1) scheduleBeep(470, ctxTime, 0.12, 2);
-                else if (currentCountdownBeat === 2) scheduleBeep(470, ctxTime, 0.12, 3);
-                else if (currentCountdownBeat === 3) scheduleBeep(940, ctxTime, 0.75, 4); 
+            let calculatedSubBeat = Math.floor(relativeTime / SUB_BEAT_DURATION);
+            if (calculatedSubBeat !== subBeatIndexTracker && calculatedSubBeat < 16) {
+                subBeatIndexTracker = calculatedSubBeat;
+                let audioClockTime = audioCtx.currentTime;
+                
+                if (currentMode === 'phigros') {
+                    // Triggers the Hi-Hat sample strictly on the 1st, 5th, 9th, and 13th sub-beats (1 0 0 0 grid layout)
+                    if (calculatedSubBeat % 4 === 0) {
+                        scheduleHihatSample(audioClockTime);
+                    }
+                    
+                    // Anchor Hook: BGM starts exactly at the 10th sub-beat (index 9) + 0.05 seconds delay
+                    if (calculatedSubBeat === 9 && backgroundMusicBuffer && !bgmStarted) {
+                        bgmStarted = true;
+                        warmupAudioContext();
+                        bgmSourceNode = audioCtx.createBufferSource();
+                        bgmSourceNode.buffer = backgroundMusicBuffer;
+                        bgmSourceNode.connect(audioCtx.destination);
+                        bgmSourceNode.start(audioClockTime + 0.05);
+                    }
+                } else {
+                    // Standard unchanged countdown fallback sequence dedicated to Taiko Mode
+                    if (calculatedSubBeat === 0) scheduleBeep(470, audioClockTime, 0.12, 1);
+                    else if (calculatedSubBeat === 4) scheduleBeep(470, audioClockTime, 0.12, 2);
+                    else if (calculatedSubBeat === 8) scheduleBeep(470, audioClockTime, 0.12, 3);
+                    else if (calculatedSubBeat === 12) scheduleBeep(940, audioClockTime, 0.75, 4);
+                }
             }
         }
 
@@ -1043,6 +1242,22 @@ function gameLoop() {
                 }
             });
             
+            let totalRegisteredNotesCount = activeNotes.length;
+            let processedNotesCount = 0;
+            activeNotes.forEach(note => {
+                if (relativeTime > note.targetOffset + WINDOW_MAX && !note.processed) {
+                    note.hitScore = 0.0;
+                    note.missedEntirely = true;
+                    note.processed = true; 
+                    currentCombo = 0; 
+                }
+                if (note.processed) processedNotesCount++;
+            });
+            
+            if (processedNotesCount >= totalRegisteredNotesCount && relativeTime >= (8 * BEAT_DURATION)) {
+                endQuestion();
+            }
+            
         } else if (currentMode === 'phigros') {
             let colWidth = canvas.width / 4;
             let keyLabels = ['A', 'S', 'D', 'F'];
@@ -1091,22 +1306,20 @@ function gameLoop() {
                     }
                 }
             });
-        }
 
-        let totalRegisteredNotesCount = activeNotes.length;
-        let processedNotesCount = 0;
-        activeNotes.forEach(note => {
-            if (relativeTime > note.targetOffset + WINDOW_MAX && !note.processed) {
-                note.hitScore = 0.0;
-                note.missedEntirely = true;
-                note.processed = true; 
-                currentCombo = 0; 
+            activeNotes.forEach(note => {
+                if (relativeTime > note.targetOffset + WINDOW_MAX && !note.processed) {
+                    note.hitScore = 0.0;
+                    note.missedEntirely = true;
+                    note.processed = true; 
+                    currentCombo = 0; 
+                }
+            });
+
+            let finalNoteLimitOffset = (4 * BEAT_DURATION) + (256 * SUB_BEAT_DURATION);
+            if (relativeTime >= finalNoteLimitOffset + 1.5) {
+                endQuestion();
             }
-            if (note.processed) processedNotesCount++;
-        });
-        
-        if (processedNotesCount >= totalRegisteredNotesCount && relativeTime >= (8 * BEAT_DURATION)) {
-            endQuestion();
         }
         ctx.restore();
         uiOverlay.innerHTML = ''; 
