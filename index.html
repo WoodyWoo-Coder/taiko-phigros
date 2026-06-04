@@ -57,7 +57,8 @@
         }
         
         .wrapper-taiko { aspect-ratio: 800 / 520; max-width: 800px !important; }
-        .wrapper-phigros { aspect-ratio: 450 / 700; max-width: 450px !important; }
+        /* Reduced vertical stretch for desktop layout to prevent scrolling */
+        .wrapper-phigros { aspect-ratio: 450 / 580; max-width: 450px !important; }
         
         canvas {
             position: absolute;
@@ -120,7 +121,7 @@
         
         .modern-next-btn {
             position: absolute;
-            bottom: 55px;
+            bottom: 100px; /* Safe position for Taiko */
             right: 45px;
             background: #ffffff;
             color: #0c0c0e;
@@ -212,13 +213,20 @@
         #orientation-guard h2 { font-size: 24px; margin: 0 0 10px 0; color: #00cec9; }
         #orientation-guard p { font-size: 15px; color: #a4b0be; margin: 0; }
 
-        /* Media Query for Phone Landscape Overrides */
-        @media screen and (max-width: 1024px) and (orientation: landscape) {
+        /* Media Query for Phone Landscape/Portrait Rules Only */
+        @media screen and (max-width: 1024px) {
             body {
-                padding: 5px 10px; /* Reduced vertical padding to prevent top cutoff */
+                padding: 5px 10px;
+            }
+            /* Retain full tall scale specifically for portrait phone layout on Phigros */
+            .wrapper-phigros { 
+                aspect-ratio: 450 / 680 !important; 
             }
             .modern-next-btn {
-                bottom: 85px; /* Pull action button upwards to clear navigation overlays */
+                bottom: 82px !important; /* Adjusted to sit at the exact canvas visual alignment axis */
+            }
+            .phigros-mobile-btn {
+                margin-top: -15px !important; /* Move "再玩一次" upwards safely */
             }
         }
     </style>
@@ -297,7 +305,7 @@ const BEAT_PATTERNS = {
     5: [1, 1, 1, 0], 6: [1, 1, 0, 1], 7: [1, 1, 0, 0], 8: [1, 0, 0, 1]
 };
 
-// --- COMMENTARY CONFIGURATION POOLS ---
+// --- COMMENTARY POOLS ---
 const INDIVIDUAL_COMMENTS = {
     tier1: ["海倫凱勒都比你強。", "你試了。我們注意到了。就這樣。", "我阿公都比你行。", "連一根皮毛都沒摸到。"],
     tier2: ["就這?", "中庸。字典裡最無趣的詞。", "你還好嗎?"],
@@ -323,7 +331,6 @@ function getCommentaryByPoints(score, isOverall = false) {
         return INDIVIDUAL_COMMENTS.tier5[Math.floor(Math.random() * INDIVIDUAL_COMMENTS.tier5.length)];
     } else {
         let normalizedScore = (currentMode === 'phigros') ? (score / 2) : score;
-
         if (normalizedScore <= 35.0) return OVERALL_COMMENTS.tier1[Math.floor(Math.random() * OVERALL_COMMENTS.tier1.length)];
         if (normalizedScore <= 40.0) return OVERALL_COMMENTS.tier2[Math.floor(Math.random() * OVERALL_COMMENTS.tier2.length)];
         if (normalizedScore <= 45.0) return OVERALL_COMMENTS.tier3[Math.floor(Math.random() * OVERALL_COMMENTS.tier3.length)];
@@ -332,7 +339,7 @@ function getCommentaryByPoints(score, isOverall = false) {
     }
 }
 
-// --- AUDIO SYNTHESIS & FILE LOADING SYSTEM ---
+// --- AUDIO SYNTHESIS & FILE LOADING ---
 let audioCtx = null;
 const drumBuffers = { 0: null, 1: null, 2: null, 3: null };
 let audioLoaded = false;
@@ -345,12 +352,8 @@ const DRUM_URLS = {
 };
 
 function warmupAudioContext() {
-    if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    }
-    if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
-    }
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
 }
 
 async function loadDrumSounds() {
@@ -375,7 +378,6 @@ async function loadDrumSounds() {
         audioLoaded = true;
         audioStatusDiv.style.color = '#0be881';
         audioStatusDiv.innerText = '✅ 樂器打擊音效載入完成！請選擇遊戲模式';
-        
         if (currentMode) {
             btnStart.disabled = false;
             btnStart.style.background = '#00cec9';
@@ -384,11 +386,8 @@ async function loadDrumSounds() {
     } catch (error) {
         audioStatusDiv.style.color = '#ff4757';
         audioStatusDiv.innerText = '⚠️ 音檔加載失敗，將使用系統內建合成器替代';
-        console.error("Audio preloader encountered exception:", error);
         audioLoaded = true; 
-        if (currentMode) {
-            btnStart.disabled = false;
-        }
+        if (currentMode) btnStart.disabled = false;
     }
 }
 
@@ -401,31 +400,23 @@ window.addEventListener('DOMContentLoaded', () => {
 
 function playHitSound(column = null) {
     warmupAudioContext();
-    
     if (currentMode === 'phigros' && column !== null && drumBuffers[column]) {
         const source = audioCtx.createBufferSource();
         source.buffer = drumBuffers[column];
-        if (column === 3) {
-            source.playbackRate.setValueAtTime(0.8, audioCtx.currentTime);
-        }
+        if (column === 3) source.playbackRate.setValueAtTime(0.8, audioCtx.currentTime);
         source.connect(audioCtx.destination);
         source.start(0);
         return;
     }
-    
     const osc = audioCtx.createOscillator();
     const gainNode = audioCtx.createGain();
-    
     osc.connect(gainNode);
     gainNode.connect(audioCtx.destination);
-    
     osc.type = 'sine';
     osc.frequency.setValueAtTime(column === null ? 65 : 70 + column * 40, audioCtx.currentTime); 
     osc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 0.25);
-    
     gainNode.gain.setValueAtTime(0.95, audioCtx.currentTime);
     gainNode.gain.linearRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
-    
     osc.start();
     osc.stop(audioCtx.currentTime + 0.25);
 }
@@ -434,11 +425,9 @@ function scheduleBeep(frequency, startTime, duration, step) {
     warmupAudioContext();
     const osc = audioCtx.createOscillator();
     const gainNode = audioCtx.createGain();
-
     osc.type = 'square'; 
     osc.frequency.setValueAtTime(frequency, startTime);
     gainNode.gain.setValueAtTime(0.2, startTime); 
-    
     if (step === 4) {
         gainNode.gain.setValueAtTime(0.2, startTime);
         gainNode.gain.linearRampToValueAtTime(0.0, startTime + 0.75);
@@ -446,10 +435,8 @@ function scheduleBeep(frequency, startTime, duration, step) {
         gainNode.gain.setValueAtTime(0.2, startTime + duration - 0.01);
         gainNode.gain.linearRampToValueAtTime(0.0, startTime + duration);
     }
-
     osc.connect(gainNode);
     gainNode.connect(audioCtx.destination);
-    
     osc.start(startTime);
     osc.stop(startTime + (step === 4 ? 0.75 : duration));
 }
@@ -486,12 +473,10 @@ let activeNotes = [];
 let timelineStartTime = 0; 
 let lastCountdownBeatRegistered = -1;
 let currentCombo = 0; 
-
 let rollingScoreDisplay = 0.0;
 let targetFinalScore = 0.0;
 let lastTickTime = 0;
 let currentActiveCommentary = ""; 
-
 let validHitsOffsetSum = 0;
 let validHitsCount = 0;
 let scoreFinishedRisingGlobal = false;
@@ -502,9 +487,7 @@ function checkOrientation() {
         guardOverlay.style.display = 'none';
         return;
     }
-    
     let isLandscape = window.innerWidth > window.innerHeight;
-    
     if (currentMode === 'taiko') {
         if (!isLandscape) {
             guardOverlay.style.display = 'flex';
@@ -534,11 +517,9 @@ window.addEventListener('orientationchange', checkOrientation);
 function selectMode(mode) {
     currentMode = mode;
     warmupAudioContext();
-    
     if (mode === 'taiko') {
         btnTaiko.classList.add('selected');
         btnPhigros.classList.remove('selected');
-        
         canvasWrapper.className = '';
         canvasWrapper.classList.add('wrapper-taiko');
         canvas.width = 800;
@@ -546,15 +527,13 @@ function selectMode(mode) {
     } else {
         btnPhigros.classList.add('selected');
         btnTaiko.classList.remove('selected');
-        
         canvasWrapper.className = '';
         canvasWrapper.classList.add('wrapper-phigros');
         canvas.width = 450;
-        canvas.height = 700;
+        // Adjust system height canvas constraints for specific platforms
+        canvas.height = (window.innerWidth <= 1024) ? 680 : 580;
     }
-    
     checkOrientation();
-    
     if (audioLoaded) {
         btnStart.disabled = false;
         btnStart.style.background = '#00cec9';
@@ -566,7 +545,6 @@ function selectMode(mode) {
 
 function startGame() {
     if (!currentMode || !audioLoaded) return;
-    
     menu.style.display = 'none';
     canvasWrapper.style.display = 'block';
     currentCombo = 0; 
@@ -587,7 +565,6 @@ function generateSession() {
     questions = [];
     questionScores = [];
     currentQuestionIndex = 0;
-    
     if (currentMode === 'taiko') {
         for(let i = 0; i < 5; i++) {
             let structuralPool = [1, 2, 3, 4, 5, 6];
@@ -624,14 +601,11 @@ function buildTimelineForQuestion() {
     gameState = 'TIMELINE_RUNNING';
     scoreFinishedRisingGlobal = false;
     actionBtnContainer.innerHTML = '';
-    
     timelineStartTime = performance.now() / 1000;
     lastCountdownBeatRegistered = -1;
     activeNotes = [];
-    
     validHitsOffsetSum = 0;
     validHitsCount = 0;
-    
     let noteIdCounter = 0;
     
     if (currentMode === 'taiko') {
@@ -639,12 +613,10 @@ function buildTimelineForQuestion() {
         for (let beatIdx = 0; beatIdx < 4; beatIdx++) {
             let patternNum = patternIDs[beatIdx];
             let subBeatMask = BEAT_PATTERNS[patternNum];
-            
             for (let subIdx = 0; subIdx < 4; subIdx++) {
                 if (subBeatMask[subIdx] === 1) {
                     let targetTime = (4 * BEAT_DURATION) + (beatIdx * BEAT_DURATION) + (subIdx * SUB_BEAT_DURATION);
                     let randomizedColumn = Math.floor(Math.random() * 4); 
-                    
                     activeNotes.push({
                         id: noteIdCounter++, 
                         targetOffset: targetTime,
@@ -666,7 +638,6 @@ function buildTimelineForQuestion() {
                 if (subBeatMask[subIdx] === 1) {
                     let targetTime = (4 * BEAT_DURATION) + (beatIdx * BEAT_DURATION) + (subIdx * SUB_BEAT_DURATION);
                     let randomizedColumn = Math.floor(Math.random() * 4);
-                    
                     activeNotes.push({
                         id: noteIdCounter++,
                         targetOffset: targetTime,
@@ -692,7 +663,6 @@ function endQuestion() {
     let totalNotes = activeNotes.length;
     let accumulated = 0;
     activeNotes.forEach(note => { accumulated += note.hitScore; });
-    
     let avg = totalNotes > 0 ? accumulated / totalNotes : 0.0;
     
     if (currentMode === 'taiko') {
@@ -714,9 +684,8 @@ function endQuestion() {
         targetFinalScore = scaledGrandScore;
         currentActiveCommentary = getCommentaryByPoints(scaledGrandScore, true);
         
-        actionBtnContainer.innerHTML = `<button id="btn-next-step" class="btn-action" style="margin-top: 10px;" onclick="location.reload()" disabled>再玩一次</button>`;
+        actionBtnContainer.innerHTML = `<button id="btn-next-step" class="btn-action phigros-mobile-btn" onclick="location.reload()" disabled>再玩一次</button>`;
     }
-    
     lastTickTime = performance.now();
 }
 
@@ -731,38 +700,28 @@ function showGrandScoreboard() {
     targetFinalScore = questionScores.reduce((a, b) => a + b, 0);
     lastTickTime = performance.now();
     currentActiveCommentary = getCommentaryByPoints(targetFinalScore, true);
-    
-    actionBtnContainer.innerHTML = `<button class="btn-action" style="margin-top: 10px;" onclick="location.reload()">再玩一次</button>`;
+    actionBtnContainer.innerHTML = `<button class="btn-action phigros-mobile-btn" onclick="location.reload()">再玩一次</button>`;
 }
 
 function handleHit(forcedColumn = null) {
     if (gameState !== 'TIMELINE_RUNNING') return;
-    
     let relativeTime = (performance.now() / 1000) - timelineStartTime;
     let countdownEndTime = 4 * BEAT_DURATION;
-    
     if (relativeTime >= (countdownEndTime - WINDOW_MAX)) {
         playHitSound(forcedColumn);
     }
-    
     for (let i = 0; i < activeNotes.length; i++) {
         let note = activeNotes[i];
-        
         if (!note.processed) {
-            if (forcedColumn !== null && note.column !== forcedColumn) {
-                continue; 
-            }
-            
+            if (forcedColumn !== null && note.column !== forcedColumn) continue; 
             let timeDifference = relativeTime - note.targetOffset;
             if (Math.abs(timeDifference) <= WINDOW_MAX) {
                 note.hitOffset = timeDifference;
                 note.hitScore = calculateAccuracyScore(timeDifference);
                 note.processed = true; 
                 note.hitTimestamp = relativeTime;
-                
                 validHitsOffsetSum += timeDifference;
                 validHitsCount++;
-                
                 let judgment = getJudgmentData(timeDifference, false);
                 if (judgment.text === '完美' || judgment.text === '良') {
                     currentCombo++;
@@ -792,7 +751,6 @@ window.addEventListener('keydown', (e) => {
 canvas.addEventListener('touchstart', (e) => {
     if (gameState !== 'TIMELINE_RUNNING') return;
     e.preventDefault(); 
-    
     if (currentMode === 'taiko') {
         handleHit(null);
     } 
@@ -801,10 +759,8 @@ canvas.addEventListener('touchstart', (e) => {
         for (let i = 0; i < e.changedTouches.length; i++) {
             let touch = e.changedTouches[i];
             let canvasRelativeX = touch.clientX - rect.left;
-            
             let calculatedColumn = Math.floor((canvasRelativeX / rect.width) * 4);
             calculatedColumn = Math.max(0, Math.min(3, calculatedColumn));
-            
             handleHit(calculatedColumn);
         }
     }
@@ -814,14 +770,11 @@ function getOptimizedScoreScreenTimeline() {
     let generatedOffsets = [];
     let currentOffset = 0;
     let consecutiveGaps = 0;
-    
     for (let i = 0; i < 32; i++) {
         let randSpawn = Math.random() > 0.45;
         if (!randSpawn) {
             consecutiveGaps++;
-            if (consecutiveGaps >= 2) { 
-                randSpawn = true; 
-            }
+            if (consecutiveGaps >= 2) randSpawn = true; 
         }
         if (randSpawn) {
             consecutiveGaps = 0;
@@ -838,13 +791,11 @@ function drawFadedGameplayBackground(simulatedRelativeTime, trackOffsetY) {
     ctx.save();
     let judgmentLineX = 220;
     let trackBaseY = 320 + trackOffsetY;
-    
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
     ctx.lineWidth = 4;
     ctx.beginPath(); 
     ctx.arc(judgmentLineX, trackBaseY, 45, 0, Math.PI * 2); 
     ctx.stroke();
-    
     ctx.fillStyle = 'rgba(255,255,255,0.02)';
     ctx.fillRect(0, trackBaseY - 50, canvas.width, 100); 
     
@@ -870,29 +821,22 @@ function gameLoop() {
     let isMobilePhone = window.innerWidth <= 1024;
     let isLandscape = window.innerWidth > window.innerHeight;
     
-    // Calculate targeted Phone Landscape Shifts
+    // Core Layout Metrics for Phone Horizontal Mode Viewports
     let phoneHorizontalGameplayShiftY = (currentMode === 'taiko' && isMobilePhone && isLandscape) ? Math.floor(canvas.height * 0.33) : 0;
     let phoneHorizontalScoreShiftY = (currentMode === 'taiko' && isMobilePhone && isLandscape) ? Math.floor(canvas.height * 0.25) : 0;
 
-    // 1. Live Interactive Gameplay Frame Handler
+    // 1. Gameplay Frame Processing View
     if (gameState === 'TIMELINE_RUNNING') {
         let maxDurationBeats = (currentMode === 'taiko') ? 8 : 20; 
-        
         ctx.save();
         
         if (currentMode === 'taiko') {
             let patternIDs = questions[currentQuestionIndex];
             
-            // Adjust card preview section layout under Phone Landscape Mode
+            // Shift cards down another 1/3 of track height to fully reveal them on mobile webviews
             let cardPanelHeight = 110;
-            let cardPanelY = 0;
-            let scaleFactorCard = 1.0;
-            
-            if (isMobilePhone && isLandscape) {
-                cardPanelHeight = 90; // Shrunk down to leave room for track line
-                cardPanelY = 15;      // Moved slightly down to prevent overlay cut-offs
-                scaleFactorCard = 0.8; // 80% Shrunk factor
-            }
+            let cardPanelY = (isMobilePhone && isLandscape) ? 65 : 0; 
+            let scaleFactorCard = (isMobilePhone && isLandscape) ? 0.8 : 1.0;
             
             ctx.fillStyle = '#1e1e24';
             ctx.fillRect(0, cardPanelY, canvas.width, cardPanelHeight);
@@ -909,7 +853,6 @@ function gameLoop() {
             for (let i = 0; i < 4; i++) {
                 let imgId = patternIDs[i];
                 let xPos = centeringStartX + (i * imgWidth);
-                
                 if (images[imgId] && images[imgId].complete) {
                     ctx.drawImage(images[imgId], xPos, cardPanelY, imgWidth, cardPanelHeight);
                 } else {
@@ -919,7 +862,6 @@ function gameLoop() {
                     ctx.font = `${Math.floor(14 * scaleFactorCard)}px Segoe UI`;
                     ctx.fillText(`卡片 ${imgId}.jpg`, xPos + (15 * scaleFactorCard), cardPanelY + (cardPanelHeight / 2));
                 }
-                
                 if (i === currentActiveImageIndex) {
                     ctx.strokeStyle = '#00cec9';
                     ctx.lineWidth = 4;
@@ -927,11 +869,11 @@ function gameLoop() {
                 }
             }
 
-            // Lowering 1/5 Round Count Index down significantly in mobile landscape view
+            // Move 1/5 layout matrix indicator downwards cleanly alongside other score parameters
             ctx.save();
             ctx.fillStyle = '#a4b0be';
             ctx.font = 'bold 20px Arial, sans-serif';
-            let labelRoundY = isMobilePhone && isLandscape ? 155 + phoneHorizontalGameplayShiftY : 145;
+            let labelRoundY = isMobilePhone && isLandscape ? 205 + phoneHorizontalGameplayShiftY : 145;
             ctx.fillText(`${currentQuestionIndex + 1} / 5`, 25, labelRoundY);
             ctx.restore();
         }
@@ -940,7 +882,6 @@ function gameLoop() {
             let currentCountdownBeat = Math.floor(relativeTime / BEAT_DURATION);
             if (currentCountdownBeat !== lastCountdownBeatRegistered && currentCountdownBeat < 4) {
                 lastCountdownBeatRegistered = currentCountdownBeat;
-                
                 let ctxTime = audioCtx.currentTime;
                 if (currentCountdownBeat === 0) scheduleBeep(470, ctxTime, 0.12, 1);
                 else if (currentCountdownBeat === 1) scheduleBeep(470, ctxTime, 0.12, 2);
@@ -951,14 +892,12 @@ function gameLoop() {
 
         if (currentMode === 'taiko') {
             let judgmentLineX = 220;
-            let trackBaseY = 320 + phoneHorizontalGameplayShiftY; // Apply shifted Y layout here
-            
+            let trackBaseY = 320 + phoneHorizontalGameplayShiftY;
             ctx.strokeStyle = '#fff';
             ctx.lineWidth = 4;
             ctx.beginPath(); 
             ctx.arc(judgmentLineX, trackBaseY, 45, 0, Math.PI * 2); 
             ctx.stroke();
-            
             ctx.fillStyle = 'rgba(255,255,255,0.03)';
             ctx.fillRect(0, trackBaseY - 50, canvas.width, 100); 
             
@@ -967,29 +906,24 @@ function gameLoop() {
                 ctx.textAlign = 'center';
                 ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
                 ctx.shadowBlur = 4;
-                ctx.shadowOffsetX = 2;
-                ctx.shadowOffsetY = 2;
-                
                 ctx.fillStyle = '#ffb8b8';
-                ctx.font = 'bold 16px Impact, Arial Black, sans-serif';
+                ctx.font = 'bold 16px Impact, Arial';
                 ctx.fillText('COMBO', 110, trackBaseY - 12);
-                
                 ctx.fillStyle = '#ffffff';
-                ctx.font = 'bold 38px Impact, Arial Black, sans-serif'; 
+                ctx.font = 'bold 38px Impact, Arial'; 
                 ctx.fillText(currentCombo, 110, trackBaseY + 25);
                 ctx.restore();
             }
             
             activeNotes.forEach(note => {
                 let xPos = judgmentLineX + ((note.targetOffset - relativeTime) * 400);
-                
                 if (note.processed) {
                     let judgment = getJudgmentData(note.hitOffset, note.missedEntirely);
                     let displayOnset = note.hitTimestamp || note.targetOffset + WINDOW_MAX;
                     if (relativeTime <= displayOnset + 0.15) {
                         if (judgment.text !== '') {
                             ctx.save();
-                            ctx.font = '900 36px "Arial Black", "Impact", "Microsoft JhengHei", sans-serif';
+                            ctx.font = '900 36px "Arial Black", "Microsoft JhengHei"';
                             ctx.textAlign = 'center';
                             ctx.strokeStyle = '#000000';
                             ctx.lineWidth = 6;
@@ -998,10 +932,6 @@ function gameLoop() {
                             ctx.fillText(judgment.text, judgmentLineX, trackBaseY - 80);
                             ctx.restore();
                         }
-                    }
-                    if (note.missedEntirely && xPos > 0 && xPos < canvas.width) {
-                        ctx.fillStyle = 'rgba(255, 77, 77, 0.5)';
-                        ctx.beginPath(); ctx.arc(xPos, trackBaseY, 20, 0, Math.PI * 2); ctx.fill();
                     }
                 } else {
                     if (xPos > judgmentLineX - 40 && xPos < canvas.width + 40) {
@@ -1014,14 +944,11 @@ function gameLoop() {
         } else if (currentMode === 'phigros') {
             let colWidth = canvas.width / 4;
             let keyLabels = ['A', 'S', 'D', 'F'];
-            
             for(let i=0; i<4; i++) {
                 ctx.strokeStyle = 'rgba(255,255,255,0.04)';
                 ctx.strokeRect(i * colWidth, 0, colWidth, canvas.height);
-                
                 ctx.fillStyle = 'rgba(0, 184, 148, 0.08)';
                 ctx.fillRect(i * colWidth + 4, canvas.height - 80, colWidth - 8, 25);
-                
                 ctx.save();
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
                 ctx.font = 'bold 15px Arial';
@@ -1029,20 +956,17 @@ function gameLoop() {
                 ctx.fillText(keyLabels[i], i * colWidth + (colWidth / 2), canvas.height - 30);
                 ctx.restore();
             }
-
             if (currentCombo >= 2) {
                 ctx.save();
                 ctx.textAlign = 'center';
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
-                ctx.font = 'bold 55px Impact, Arial Black';
+                ctx.font = 'bold 55px Impact';
                 ctx.fillText(currentCombo, canvas.width / 2, 120);
                 ctx.restore();
             }
-            
             activeNotes.forEach(note => {
                 let colLeftX = note.column * colWidth;
                 let yPos = (canvas.height - 65) - ((note.targetOffset - relativeTime) * 450);
-                
                 if (note.processed) {
                     let judgment = getJudgmentData(note.hitOffset, note.missedEntirely);
                     let displayOnset = note.hitTimestamp || note.targetOffset + WINDOW_MAX;
@@ -1069,7 +993,6 @@ function gameLoop() {
 
         let totalRegisteredNotesCount = activeNotes.length;
         let processedNotesCount = 0;
-        
         activeNotes.forEach(note => {
             if (relativeTime > note.targetOffset + WINDOW_MAX && !note.processed) {
                 note.hitScore = 0.0;
@@ -1077,9 +1000,7 @@ function gameLoop() {
                 note.processed = true; 
                 currentCombo = 0; 
             }
-            if (note.processed) {
-                processedNotesCount++;
-            }
+            if (note.processed) processedNotesCount++;
         });
         
         if (processedNotesCount >= totalRegisteredNotesCount && relativeTime >= (maxDurationBeats * BEAT_DURATION)) {
@@ -1089,7 +1010,7 @@ function gameLoop() {
         uiOverlay.innerHTML = ''; 
     }
 
-    // 2. Individual Round Results Dashboard Screen Frame Handler
+    // 2. Performance Scores Screen Frame Handler
     if (gameState === 'QUESTION_SCORE') {
         let timestampNow = performance.now();
         let limitMaxScore = (currentMode === 'taiko') ? 10.0 : 100.0;
@@ -1105,9 +1026,7 @@ function gameLoop() {
         } else {
             scoreFinishedRisingGlobal = true;
             let btnNext = document.getElementById('btn-next-step');
-            if (btnNext && btnNext.disabled) {
-                btnNext.disabled = false;
-            }
+            if (btnNext && btnNext.disabled) btnNext.disabled = false;
         }
 
         ctx.save();
@@ -1124,20 +1043,19 @@ function gameLoop() {
                 ctx.scale(0.95, 0.95);
             }
 
-            // Lowering 1/5 Index count and shifting based on phone landscape
+            // Downward adjustment of 1/4 screen size for Round indicator, total score, and commentary
             ctx.save();
             ctx.fillStyle = '#a4b0be';
             ctx.font = 'bold 24px Arial, sans-serif';
-            let scoreRoundY = isMobilePhone && isLandscape ? 65 + phoneHorizontalScoreShiftY : 65;
+            let scoreRoundY = isMobilePhone && isLandscape ? 120 + phoneHorizontalScoreShiftY : 65;
             ctx.fillText(`${currentQuestionIndex + 1} / 5`, 50, scoreRoundY);
             ctx.restore();
 
-            // Lowering Total Points Score display & Commentary
             ctx.save();
             ctx.textAlign = 'right';
             ctx.font = '900 82px Helvetica Neue, Arial, sans-serif';
             ctx.fillStyle = '#ffffff';
-            let scoreTextY = isMobilePhone && isLandscape ? 130 + phoneHorizontalScoreShiftY : 130;
+            let scoreTextY = isMobilePhone && isLandscape ? 185 + phoneHorizontalScoreShiftY : 130;
             ctx.fillText(`${rollingScoreDisplay.toFixed(2)}`, canvas.width - 50, scoreTextY);
             ctx.restore();
 
@@ -1146,7 +1064,7 @@ function gameLoop() {
                 ctx.textAlign = 'right';
                 ctx.font = 'bold 24px Microsoft JhengHei, sans-serif';
                 ctx.fillStyle = '#a4b0be';
-                let commentaryTextY = isMobilePhone && isLandscape ? 185 + phoneHorizontalScoreShiftY : 185;
+                let commentaryTextY = isMobilePhone && isLandscape ? 240 + phoneHorizontalScoreShiftY : 185;
                 ctx.fillText(currentActiveCommentary, canvas.width - 50, commentaryTextY);
                 ctx.restore();
             }
@@ -1156,21 +1074,21 @@ function gameLoop() {
             ctx.textAlign = 'center';
             ctx.fillStyle = '#00cec9';
             ctx.font = 'bold 24px Segoe UI, sans-serif';
-            ctx.fillText('TRACK PERFORMANCE', canvas.width / 2, 160);
+            ctx.fillText('TRACK PERFORMANCE', canvas.width / 2, 120);
             
             ctx.fillStyle = '#ffffff';
             ctx.font = '900 74px Helvetica Neue, sans-serif';
-            ctx.fillText(`${rollingScoreDisplay.toFixed(2)}`, canvas.width / 2, 260);
+            ctx.fillText(`${rollingScoreDisplay.toFixed(2)}`, canvas.width / 2, 220);
             
             if (scoreFinishedRisingGlobal) {
                 ctx.fillStyle = '#747d8c';
                 ctx.font = 'bold 18px Microsoft JhengHei, sans-serif';
-                ctx.fillText(currentActiveCommentary, canvas.width / 2, 330);
+                ctx.fillText(currentActiveCommentary, canvas.width / 2, 290);
             }
             ctx.restore();
         }
 
-        // Lowering and scaling accuracy trend evaluation text ("稍慢") to 80% size
+        // Exact horizontal axis lock alignment for both "稍慢" Evaluation and "下一步" button
         if (scoreFinishedRisingGlobal && currentMode === 'taiko') {
             ctx.save();
             if (isMobilePhone) {
@@ -1178,10 +1096,8 @@ function gameLoop() {
                 ctx.scale(0.95, 0.95);
             }
             let displayTrendString = "";
-            
             if (validHitsCount > 0) {
                 let trueMean = validHitsOffsetSum / validHitsCount; 
-
                 if (trueMean > 0.05) displayTrendString = "太慢";
                 else if (trueMean > 0.01) displayTrendString = "稍慢";
                 else if (trueMean < -0.05) displayTrendString = "太快";
@@ -1192,21 +1108,18 @@ function gameLoop() {
             }
 
             ctx.fillStyle = "#ffffff";
+            ctx.font = '900 54px "Microsoft JhengHei", Arial, sans-serif'; 
             
-            if (isMobilePhone && isLandscape) {
-                ctx.font = '900 54px "Microsoft JhengHei", Arial, sans-serif'; // Shrunk factor applied (~80% of 68px)
-                ctx.fillText(displayTrendString, 50, 435 + phoneHorizontalScoreShiftY); // Pushed down + offset
-            } else {
-                ctx.font = '900 68px "Microsoft JhengHei", Arial, sans-serif';
-                ctx.fillText(displayTrendString, 50, 465);
-            }
+            // Set uniform Y position coordinate vector (Y = 410) inside canvas boundaries
+            let finalEvaluationY = (isMobilePhone && isLandscape) ? 410 : 465;
+            ctx.fillText(displayTrendString, 50, finalEvaluationY);
             ctx.restore();
         }
         ctx.restore();
         uiOverlay.innerHTML = ''; 
     }
 
-    // 3. Final Overall Summary Performance Screen Frame Handler (Taiko Only)
+    // 3. Overall Summary Grand Score Matrix
     if (gameState === 'FINAL_SCOREBOARD') {
         let timestampNow = performance.now();
         let totalScoreFinishedRising = false;
@@ -1224,11 +1137,9 @@ function gameLoop() {
         }
 
         ctx.save();
-        // Lowering down by 1/4 layout height under phone landscape orientation mode
         if (currentMode === 'taiko' && isMobilePhone && isLandscape) {
             ctx.translate(0, canvas.height * 0.25);
         }
-
         ctx.save();
         if (isMobilePhone) {
             ctx.translate(canvas.width * 0.025, canvas.height * 0.025);
@@ -1269,7 +1180,6 @@ function gameLoop() {
         for (let i = 0; i < 5; i++) {
             let computedX = matrixStartLeftX + (i * segmentSpacing);
             let scoreVal = questionScores[i] || 0;
-
             ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
             ctx.font = 'bold 20px Arial, sans-serif';
             ctx.fillText(`${i + 1}`, computedX, 320);
