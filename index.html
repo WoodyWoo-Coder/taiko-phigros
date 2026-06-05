@@ -273,7 +273,7 @@
     <div id="menu">
         <h1>擊擊復擊擊</h1>
         <div class="credits">製作者: 郭覲德 林映澄</div>
-        <div class="version-tag">Version 1.15</div>
+        <div class="version-tag">Version 1.16</div>
         
         <div id="tutorial-panel">
             <h3>玩法教學 (Tutorial)</h3>
@@ -295,7 +295,6 @@
             </div>
         </div>
 
-        <!-- Song Choice Panels for Phigros Mode -->
         <div id="song-selector">
             <div class="song-card unlocked" onclick="selectSong(1)">
                 <div class="song-info">
@@ -551,7 +550,7 @@ function playHitSound(column = null) {
             const source = audioCtx.createBufferSource();
             const gainNode = audioCtx.createGain();
             source.buffer = drumBuffers[0];
-            gainNode.gain.setValueAtTime(1.0, audioCtx.currentTime); // Tuned up to max
+            gainNode.gain.setValueAtTime(1.0, audioCtx.currentTime); 
             source.connect(gainNode);
             gainNode.connect(audioCtx.destination);
             source.start(0);
@@ -1199,7 +1198,8 @@ function gameLoop() {
                     const bgmGainNode = audioCtx.createGain();
                     
                     bgmSourceNode.buffer = backgroundMusicBuffer;
-                    bgmGainNode.gain.setValueAtTime(1.65, audioClockTime + 0.05); 
+                    // Adjusted up by 1.5x (from 1.65 to 2.475) for louder track performance
+                    bgmGainNode.gain.setValueAtTime(2.475, audioClockTime + 0.05); 
                     
                     bgmSourceNode.connect(bgmGainNode);
                     bgmGainNode.connect(audioCtx.destination);
