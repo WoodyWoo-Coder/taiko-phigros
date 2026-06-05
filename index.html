@@ -273,7 +273,7 @@
     <div id="menu">
         <h1>擊擊復擊擊</h1>
         <div class="credits">製作者: 郭覲德 林映澄</div>
-        <div class="version-tag">Version 1.14</div>
+        <div class="version-tag">Version 1.15</div>
         
         <div id="tutorial-panel">
             <h3>玩法教學 (Tutorial)</h3>
@@ -431,10 +431,8 @@ const OVERALL_COMMENTS = {
     tier5: ["精確到讓人作嘔。", "挺沒用的能力其實。", "近乎完美都不足以形容你。", "外星人，你被我們逮捕了。"]
 };
 
-// Updated evaluation tier algorithm brackets per specifications
 function getCommentaryByPoints(score, isOverall = false) {
     if (!isOverall) {
-        // Taiko mode INDIVIDUAL SCORE brackets
         if (score < 5.0) return INDIVIDUAL_COMMENTS.tier1[Math.floor(Math.random() * INDIVIDUAL_COMMENTS.tier1.length)];
         if (score < 7.0) return INDIVIDUAL_COMMENTS.tier2[Math.floor(Math.random() * INDIVIDUAL_COMMENTS.tier2.length)];
         if (score < 8.5) return INDIVIDUAL_COMMENTS.tier3[Math.floor(Math.random() * INDIVIDUAL_COMMENTS.tier3.length)];
@@ -442,14 +440,12 @@ function getCommentaryByPoints(score, isOverall = false) {
         return INDIVIDUAL_COMMENTS.tier5[Math.floor(Math.random() * INDIVIDUAL_COMMENTS.tier5.length)];
     } else {
         if (currentMode === 'taiko') {
-            // Taiko mode GRAND TOTAL (0-50) brackets
             if (score <= 35.0) return OVERALL_COMMENTS.tier1[Math.floor(Math.random() * OVERALL_COMMENTS.tier1.length)];
             if (score <= 40.0) return OVERALL_COMMENTS.tier2[Math.floor(Math.random() * OVERALL_COMMENTS.tier2.length)];
             if (score <= 45.0) return OVERALL_COMMENTS.tier3[Math.floor(Math.random() * OVERALL_COMMENTS.tier3.length)];
             if (score <= 48.0) return OVERALL_COMMENTS.tier4[Math.floor(Math.random() * OVERALL_COMMENTS.tier4.length)];
             return OVERALL_COMMENTS.tier5[Math.floor(Math.random() * OVERALL_COMMENTS.tier5.length)];
         } else {
-            // Phigros mode TOTAL (0-100) brackets
             if (score <= 70.0) return OVERALL_COMMENTS.tier1[Math.floor(Math.random() * OVERALL_COMMENTS.tier1.length)];
             if (score <= 80.0) return OVERALL_COMMENTS.tier2[Math.floor(Math.random() * OVERALL_COMMENTS.tier2.length)];
             if (score <= 90.0) return OVERALL_COMMENTS.tier3[Math.floor(Math.random() * OVERALL_COMMENTS.tier3.length)];
@@ -548,7 +544,22 @@ window.addEventListener('DOMContentLoaded', () => {
 
 function playHitSound(column = null) {
     warmupAudioContext();
-    if (column !== null && drumBuffers[column]) {
+    
+    // Hardcode Taiko mode hits to always use the loud Bass Drum (Buffer 0) at Max volume (1.0)
+    if (currentMode === 'taiko') {
+        if (drumBuffers[0]) {
+            const source = audioCtx.createBufferSource();
+            const gainNode = audioCtx.createGain();
+            source.buffer = drumBuffers[0];
+            gainNode.gain.setValueAtTime(1.0, audioCtx.currentTime); // Tuned up to max
+            source.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            source.start(0);
+            return;
+        }
+    } 
+    // Standard Phigros mode hits mapping
+    else if (column !== null && drumBuffers[column]) {
         const source = audioCtx.createBufferSource();
         const gainNode = audioCtx.createGain();
         
@@ -566,6 +577,8 @@ function playHitSound(column = null) {
         source.start(0);
         return;
     }
+    
+    // Fallback synthesizer oscillator
     const osc = audioCtx.createOscillator();
     const gainNode = audioCtx.createGain();
     osc.connect(gainNode);
@@ -573,24 +586,10 @@ function playHitSound(column = null) {
     osc.type = 'sine';
     osc.frequency.setValueAtTime(column === null ? 65 : 70 + column * 40, audioCtx.currentTime); 
     osc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 0.25);
-    gainNode.gain.setValueAtTime(0.95, audioCtx.currentTime);
+    gainNode.gain.setValueAtTime(1.0, audioCtx.currentTime);
     gainNode.gain.linearRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
     osc.start();
     osc.stop(audioCtx.currentTime + 0.25);
-}
-
-function scheduleBeep(freq, startTime, duration, countNum) {
-    warmupAudioContext();
-    const osc = audioCtx.createOscillator();
-    const gainNode = audioCtx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(freq, startTime);
-    gainNode.gain.setValueAtTime(0.50, startTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
-    osc.connect(gainNode);
-    gainNode.connect(audioCtx.destination);
-    osc.start(startTime);
-    osc.stop(startTime + duration);
 }
 
 function scheduleHihatSample(startTime) {
@@ -599,7 +598,7 @@ function scheduleHihatSample(startTime) {
         const source = audioCtx.createBufferSource();
         const gainNode = audioCtx.createGain();
         source.buffer = drumBuffers[2];
-        gainNode.gain.setValueAtTime(0.8, startTime); 
+        gainNode.gain.setValueAtTime(0.5, startTime); // Tuned down to 0.5 volume
         source.connect(gainNode);
         gainNode.connect(audioCtx.destination);
         source.start(startTime);
@@ -931,7 +930,7 @@ function handleHit(forcedColumn = null) {
     for (let i = 0; i < activeNotes.length; i++) {
         let note = activeNotes[i];
         if (!note.processed) {
-            if (forcedColumn !== null && note.column !== forcedColumn) continue; 
+            if (currentMode !== 'taiko' && forcedColumn !== null && note.column !== forcedColumn) continue; 
             let timeDifference = relativeTime - note.targetOffset;
             if (Math.abs(timeDifference) <= WINDOW_MAX) {
                 note.hitOffset = timeDifference;
@@ -1169,35 +1168,42 @@ function gameLoop() {
             }
         }
 
-        if (relativeTime < countdownEndTime) {
-            let calculatedSubBeat = Math.floor(relativeTime / SUB_BEAT_DURATION);
-            if (calculatedSubBeat !== subBeatIndexTracker && calculatedSubBeat < 16) {
-                subBeatIndexTracker = calculatedSubBeat;
-                let audioClockTime = audioCtx.currentTime;
-                
-                if (currentMode === 'phigros') {
-                    if (calculatedSubBeat % 4 === 0) {
+        // --- SUB-BEAT METRONOME AUDIO TICK LOGIC ---
+        let totalMetronomeSubbeats = 32; 
+        let currentCalculatedSubbeat = Math.floor(relativeTime / SUB_BEAT_DURATION);
+
+        if (currentCalculatedSubbeat !== subBeatIndexTracker && currentCalculatedSubbeat < totalMetronomeSubbeats) {
+            subBeatIndexTracker = currentCalculatedSubbeat;
+            let audioClockTime = audioCtx.currentTime;
+
+            if (currentMode === 'taiko') {
+                if (currentCalculatedSubbeat < 16) {
+                    if (currentCalculatedSubbeat % 4 === 0) {
                         scheduleHihatSample(audioClockTime);
                     }
-                    
-                    if (calculatedSubBeat === 9 && backgroundMusicBuffer && !bgmStarted) {
-                        bgmStarted = true;
-                        warmupAudioContext();
-                        bgmSourceNode = audioCtx.createBufferSource();
-                        const bgmGainNode = audioCtx.createGain();
-                        
-                        bgmSourceNode.buffer = backgroundMusicBuffer;
-                        bgmGainNode.gain.setValueAtTime(1.65, audioClockTime + 0.05); 
-                        
-                        bgmSourceNode.connect(bgmGainNode);
-                        bgmGainNode.connect(audioCtx.destination);
-                        bgmSourceNode.start(audioClockTime + 0.05);
+                } 
+                else {
+                    if ((currentCalculatedSubbeat - 16) % 4 === 0) {
+                        scheduleHihatSample(audioClockTime);
                     }
-                } else {
-                    if (calculatedSubBeat === 0) scheduleBeep(470, audioClockTime, 0.12, 1);
-                    else if (calculatedSubBeat === 4) scheduleBeep(470, audioClockTime, 0.12, 2);
-                    else if (calculatedSubBeat === 8) scheduleBeep(470, audioClockTime, 0.12, 3);
-                    else if (calculatedSubBeat === 12) scheduleBeep(940, audioClockTime, 0.75, 4);
+                }
+            } else if (currentMode === 'phigros') {
+                if (currentCalculatedSubbeat % 4 === 0) {
+                    scheduleHihatSample(audioClockTime);
+                }
+                
+                if (currentCalculatedSubbeat === 9 && backgroundMusicBuffer && !bgmStarted) {
+                    bgmStarted = true;
+                    warmupAudioContext();
+                    bgmSourceNode = audioCtx.createBufferSource();
+                    const bgmGainNode = audioCtx.createGain();
+                    
+                    bgmSourceNode.buffer = backgroundMusicBuffer;
+                    bgmGainNode.gain.setValueAtTime(1.65, audioClockTime + 0.05); 
+                    
+                    bgmSourceNode.connect(bgmGainNode);
+                    bgmGainNode.connect(audioCtx.destination);
+                    bgmSourceNode.start(audioClockTime + 0.05);
                 }
             }
         }
