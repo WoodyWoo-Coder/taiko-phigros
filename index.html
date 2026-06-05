@@ -4,6 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>擊擊復擊擊 - Percussion Practice Suite</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <script>
+        const SUPABASE_URL = "https://gxrsgtukrxowwzzzeqjg.supabase.co";
+        const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd4cnNndHVrcnhvd3d6enplcWpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NDMxMzcsImV4cCI6MjA5NjIxOTEzN30.sO0H-KOLetMrkm7rZEOZuc9CgAO8uJhzWwmfU8OyDIs";
+        
+        // This instantly assigns the client to the global window scope
+        window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    </script>
+
     <style>
         html, body {
             min-height: 100%;
@@ -226,6 +237,95 @@
         #orientation-guard h2 { font-size: 24px; margin: 0 0 10px 0; color: #00cec9; }
         #orientation-guard p { font-size: 15px; color: #a4b0be; margin: 0; }
 
+        /* --- LEADERBOARD MODAL CONTAINER STYLE --- */
+        #leaderboard-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(12, 12, 14, 0.96);
+            z-index: 5000;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            padding: 30px 15px;
+            box-sizing: border-box;
+        }
+        .lb-content {
+            width: 100%;
+            max-width: 550px;
+            margin: 40px auto;
+            background: #1e1e24;
+            border: 2px solid #2f3542;
+            border-radius: 12px;
+            padding: 30px 20px;
+            box-sizing: border-box;
+            position: relative;
+            text-align: center;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.8);
+        }
+        .lb-exit-btn {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            width: 32px;
+            height: 32px;
+            cursor: pointer;
+            z-index: 5100;
+            transition: transform 0.2s ease;
+        }
+        .lb-exit-btn:hover { transform: scale(1.1); }
+        .lb-title { font-size: 28px; color: #00cec9; margin-bottom: 20px; font-weight: bold; letter-spacing: 2px; }
+        .lb-menu-row { display: flex; justify-content: center; gap: 15px; margin-bottom: 25px; }
+        .lb-table { width: 100%; border-collapse: collapse; margin-top: 15px; text-align: left; }
+        .lb-table th { padding: 10px; border-bottom: 2px solid #2f3542; color: #747d8c; font-size: 14px; }
+        .lb-table td { padding: 12px 10px; border-bottom: 1px solid #2f3542; font-size: 16px; color: #ffffff; }
+        .lb-table tr:nth-child(even) { background: rgba(255,255,255,0.02); }
+        .rank-num { font-weight: bold; color: #00cec9; width: 40px; }
+        .score-val { text-align: right; font-weight: bold; color: #eccc68; }
+        
+        /* --- SUBMIT PANEL MODAL --- */
+        #submit-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(12, 12, 14, 0.85);
+            z-index: 6000;
+            align-items: center;
+            justify-content: center;
+            padding: 15px;
+            box-sizing: border-box;
+        }
+        .submit-box {
+            background: #1e1e24;
+            border: 2px solid #00cec9;
+            border-radius: 10px;
+            padding: 25px;
+            max-width: 420px;
+            width: 100%;
+            box-sizing: border-box;
+            text-align: center;
+            box-shadow: 0 0 25px rgba(0, 206, 201, 0.3);
+        }
+        .submit-box h3 { margin-top: 0; color: #00cec9; font-size: 22px; }
+        .submit-box p { color: #a4b0be; font-size: 14px; margin-bottom: 15px; }
+        .submit-box input {
+            width: 100%;
+            background: #0c0c0e;
+            border: 2px solid #2f3542;
+            border-radius: 6px;
+            padding: 12px;
+            color: #ffffff;
+            font-size: 16px;
+            box-sizing: border-box;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .submit-box input:focus { border-color: #00cec9; outline: none; }
+        .letter-count-indicator { font-size: 12px; text-align: right; margin-bottom: 15px; color: #747d8c; }
+        .submit-box-btns { display: flex; gap: 10px; justify-content: center; }
+
         @media screen and (max-width: 1024px) {
             body.taiko-active-mode {
                 padding: 20px 10px !important;
@@ -269,11 +369,46 @@
     <p id="guard-desc">Please rotate your device to continue.</p>
 </div>
 
+<div id="leaderboard-overlay">
+    <div class="lb-content">
+        <img src="exit.png" class="lb-exit-btn" alt="Exit" onclick="closeLeaderboardOverlay()">
+        <div class="lb-title">排行榜 HIGHSCORES</div>
+        
+        <div class="lb-menu-row">
+            <button id="lb-btn-taiko" class="btn" onclick="switchLeaderboardMode('taiko')">太鼓模式</button>
+            <button id="lb-btn-phigros" class="btn" onclick="switchLeaderboardMode('phigros')">音遊模式</button>
+        </div>
+
+        <div id="lb-song-subselector" style="display:none; flex-direction:column; gap:8px; margin-bottom:20px; align-items:center;">
+            <p style="margin:0 0 5px 0; color:#a4b0be; font-size:14px; font-weight:bold;">選擇歌曲項目 View Records By Song:</p>
+            <button id="lb-btn-song1" class="btn" style="min-width:260px; padding:8px 15px; font-size:15px;" onclick="viewPhigrosSongLeaderboard(1)">刻在我心底的名字</button>
+            <button id="lb-btn-song2" class="btn" style="min-width:260px; padding:8px 15px; font-size:15px; opacity:0.4; cursor:not-allowed;" onclick="viewPhigrosSongLeaderboard(2)" disabled>🔒 Bonus Track 02</button>
+            <button id="lb-btn-song3" class="btn" style="min-width:260px; padding:8px 15px; font-size:15px; opacity:0.4; cursor:not-allowed;" onclick="viewPhigrosSongLeaderboard(3)" disabled>🔒 Bonus Track 03</button>
+        </div>
+
+        <div id="lb-table-wrapper">
+            </div>
+    </div>
+</div>
+
+<div id="submit-overlay">
+    <div class="submit-box">
+        <h3>上傳分數 Record Submission</h3>
+        <p id="submit-score-desc">得分: 0.00</p>
+        <input type="text" id="player-name-input" placeholder="輸入玩家名字..." oninput="updateWeightedNameCounter()">
+        <div class="letter-count-indicator" id="name-len-counter">字數計算: 0 / 16</div>
+        <div class="submit-box-btns">
+            <button class="btn" style="padding:10px 20px; min-width:110px;" onclick="closeSubmitScoreOverlay()">取消</button>
+            <button class="btn selected" id="btn-submit-confirm" style="padding:10px 20px; min-width:110px;" onclick="commitScoreSubmissionToStorage()">確定</button>
+        </div>
+    </div>
+</div>
+
 <div id="game-container">
     <div id="menu">
         <h1>擊擊復擊擊</h1>
         <div class="credits">製作者: 郭覲德 林映澄</div>
-        <div class="version-tag">Version 1.16</div>
+        <div class="version-tag">Version 1.20</div>
         
         <div id="tutorial-panel">
             <h3>玩法教學 (Tutorial)</h3>
@@ -319,7 +454,10 @@
             </div>
         </div>
         
-        <button id="btn-start" class="btn-action" onclick="startGame()" disabled>開始遊戲</button>
+        <div style="display:flex; gap:15px; align-items:center; margin-top:5px;">
+            <button id="btn-start" class="btn-action" onclick="startGame()" disabled>開始遊戲</button>
+            <button id="btn-main-lb" class="btn" style="margin-top:15px; padding:15px 25px; height:58px; background:#2c3e50; border-color:#34495e; color:#fff;" onclick="openLeaderboardOverlay()">排行榜 🏆</button>
+        </div>
     </div>
 
     <div id="canvas-wrapper" style="display:none;">
@@ -544,7 +682,6 @@ window.addEventListener('DOMContentLoaded', () => {
 function playHitSound(column = null) {
     warmupAudioContext();
     
-    // Hardcode Taiko mode hits to always use the loud Bass Drum (Buffer 0) at Max volume (1.0)
     if (currentMode === 'taiko') {
         if (drumBuffers[0]) {
             const source = audioCtx.createBufferSource();
@@ -557,7 +694,6 @@ function playHitSound(column = null) {
             return;
         }
     } 
-    // Standard Phigros mode hits mapping
     else if (column !== null && drumBuffers[column]) {
         const source = audioCtx.createBufferSource();
         const gainNode = audioCtx.createGain();
@@ -577,7 +713,6 @@ function playHitSound(column = null) {
         return;
     }
     
-    // Fallback synthesizer oscillator
     const osc = audioCtx.createOscillator();
     const gainNode = audioCtx.createGain();
     osc.connect(gainNode);
@@ -597,7 +732,7 @@ function scheduleHihatSample(startTime) {
         const source = audioCtx.createBufferSource();
         const gainNode = audioCtx.createGain();
         source.buffer = drumBuffers[2];
-        gainNode.gain.setValueAtTime(0.5, startTime); // Tuned down to 0.5 volume
+        gainNode.gain.setValueAtTime(0.5, startTime); 
         source.connect(gainNode);
         gainNode.connect(audioCtx.destination);
         source.start(startTime);
@@ -648,6 +783,10 @@ let scoreFinishedRisingGlobal = false;
 let resultViewStartTimestamp = 0;
 
 let canvasNextBtnRect = { x: 0, y: 0, w: 0, h: 0 };
+
+// --- LEADERBOARD & SUBMISSION STATES ---
+let currentLBMode = 'taiko';
+let currentLBSongId = 1;
 
 function iSMobileDevice() {
     return window.innerWidth <= 1024;
@@ -822,7 +961,8 @@ function buildTimelineForQuestion() {
             }
         }
     } else {
-        let countInPeriod = 4 * BEAT_DURATION;
+        // RESTORED: Kept at 4 * BEAT_DURATION so notes enter perfectly on target
+        let countInPeriod = 4 * BEAT_DURATION; 
         for (let s = 0; s < 256; s++) {
             let itemTargetOffset = countInPeriod + (s * SUB_BEAT_DURATION);
             
@@ -865,14 +1005,16 @@ function endQuestion() {
         rollingScoreDisplay = 0.0;
         targetFinalScore = avg;
         currentActiveCommentary = getCommentaryByPoints(avg, false);
-        actionBtnContainer.innerHTML = ''; 
+        actionBtnContainer.innerHTML = ''; // Kept empty until score rolls up!
     } else {
         let scaledGrandScore = avg * 10.0; 
         questionScores.push(scaledGrandScore);
         rollingScoreDisplay = 0.0;
         targetFinalScore = scaledGrandScore;
         currentActiveCommentary = getCommentaryByPoints(scaledGrandScore, true);
-        actionBtnContainer.innerHTML = `<button id="btn-next-step" class="btn-action" onclick="location.reload()" disabled>再玩一次</button>`;
+        
+        // 🛠️ CHANGED: Keep it completely empty at startup so nothing appears while score rolls!
+        actionBtnContainer.innerHTML = ''; 
     }
     lastTickTime = performance.now();
 }
@@ -891,7 +1033,10 @@ function showGrandScoreboard() {
     
     lastTickTime = performance.now();
     currentActiveCommentary = getCommentaryByPoints(rawSum, true);
-    actionBtnContainer.innerHTML = ''; 
+    
+    // 🛠️ CHANGED: Keep it completely empty at startup so the final scoreboard 
+    // doesn't show the submit button until the grand total finishes rolling!
+    actionBtnContainer.innerHTML = '';
     
     window.scrollTo({ top: 0, behavior: 'instant' });
 }
@@ -958,7 +1103,7 @@ window.addEventListener('touchmove', (e) => {
 }, { passive: true });
 
 function isPointInRect(px, py, rect) {
-    return px >= rect.x && px <= rect.x + rect.w && py >= rect.y && py <= rect.y + rect.h;
+    return px >= rect.x && px <= rect.x + rect.w && py >= rect.y && py <= rect.h + rect.y;
 }
 
 function executeCanvasButtonClickLogic() {
@@ -1088,9 +1233,16 @@ function drawModernCanvasNextButton(textString) {
     let btnX = canvas.width - btnW - 50;
     
     let trendBaselineY = getMappedY(15);
+    
+    // 🧠 FIXED MATH: Starts with the final scoreboard modifier, and adds 3% extra height specifically if playing Taiko mode
     let verticalOffsetModifier = (gameState === 'FINAL_SCOREBOARD') ? (canvas.height * 0.02) : 0;
+    if (currentMode === 'taiko') {
+        verticalOffsetModifier += (canvas.height * 0.045); // Pushes the button down by exactly 5%
+    }
+    
     let btnY = (trendBaselineY - btnH) + verticalOffsetModifier; 
 
+    // This updates the mouse-click collision hitbox dynamically to match the new visual placement!
     canvasNextBtnRect = { x: btnX, y: btnY, w: btnW, h: btnH };
 
     if (!scoreFinishedRisingGlobal) {
@@ -1121,6 +1273,300 @@ function drawModernCanvasNextButton(textString) {
     ctx.restore();
 }
 
+// ========================================================
+// LEADERBOARD CORE DATA MANIPULATION LOGIC
+// ========================================================
+// Step 4.3: Modified to fetch live data from WoodyWoo-Coder's Supabase server
+async function getCustomLeaderboardArray(modeKey, songId = 1) {
+    try {
+        let query = window.supabaseClient
+            .from('global_leaderboards')
+            .select('player_name, score')
+            .eq('game_mode', modeKey);
+            
+        if (modeKey === 'phigros') {
+            query = query.eq('song_id', songId);
+        } else {
+            query = query.eq('song_id', 1);
+        }
+
+        const { data, error } = await query
+            .order('score', { ascending: false })
+            .limit(5);
+
+        if (error) throw error;
+        
+        // Define your baseline default benchmarks
+        const taikoDefaults = [
+            { name: "Player 1", score: 20.0 },
+            { name: "Player 2", score: 15.0 },
+            { name: "Player 3", score: 10.0 },
+            { name: "Player 4", score: 5.0 },
+            { name: "Player 5", score: 0.0 }
+        ];
+
+        const phigrosDefaults = [
+            { name: "Player 1", score: 40.0 },
+            { name: "Player 2", score: 30.0 },
+            { name: "Player 3", score: 20.0 },
+            { name: "Player 4", score: 10.0 },
+            { name: "Player 5", score: 0.0 }
+        ];
+
+        // Pick the right default list based on mode
+        const defaults = (modeKey === 'taiko') ? taikoDefaults : phigrosDefaults;
+
+        // Map live data from the database
+        let liveScores = (data || []).map(row => ({ 
+            name: row.player_name, 
+            score: parseFloat(row.score) 
+        }));
+
+        // 🧠 MAGIC LINES: If liveScores has fewer than 5 entries, pad it with the remaining defaults!
+        while (liveScores.length < 5) {
+            let nextDefaultIndex = liveScores.length; // e.g. if we have 1 score, grab defaults[1] (Player 2)
+            liveScores.push(defaults[nextDefaultIndex]);
+        }
+
+        return liveScores;
+
+    } catch (err) {
+        console.error("Live global server timeout or connection error:", err);
+        return Array.from({ length: 5 }, (_, i) => ({ name: "Server Syncing...", score: 0.0 }));
+    }
+}
+
+function saveCustomLeaderboardArray(modeKey, songId, arr) {
+    let keyStr = (modeKey === 'taiko') ? 'LB_DATA_TAIKO' : `LB_DATA_PHIGROS_${songId}`;
+    arr.sort((a, b) => b.score - a.score);
+    localStorage.setItem(keyStr, JSON.stringify(arr)); 
+}
+
+// Updated: Added async/await so the overlay waits for the live data stream to finish
+async function openLeaderboardOverlay() {
+    document.getElementById('leaderboard-overlay').style.display = 'block';
+    
+    // Added await here so the UI pauses for a millisecond to let Supabase respond
+    await switchLeaderboardMode('taiko');
+}
+
+function closeLeaderboardOverlay() {
+    document.getElementById('leaderboard-overlay').style.display = 'none';
+}
+
+// Updated: Added async/await to wait for the cloud database to download scores
+async function switchLeaderboardMode(m) {
+    currentLBMode = m;
+    const btnT = document.getElementById('lb-btn-taiko');
+    const btnP = document.getElementById('lb-btn-phigros');
+    const subSel = document.getElementById('lb-song-subselector');
+    
+    if (m === 'taiko') {
+        btnT.classList.add('selected');
+        btnP.classList.remove('selected');
+        subSel.style.display = 'none';
+        
+        // Added await here to wait for live database
+        let scores = await getCustomLeaderboardArray('taiko');
+        renderLeaderboardTableContent(scores);
+    } else {
+        btnP.classList.add('selected');
+        btnT.classList.remove('selected');
+        subSel.style.display = 'flex';
+        
+        document.getElementById('lb-btn-song1').classList.add('selected');
+        await viewPhigrosSongLeaderboard(1);
+    }
+}
+
+// Updated: Added async/await to wait for the specific song track cloud leaderboard data
+async function viewPhigrosSongLeaderboard(songId) {
+    currentLBSongId = songId;
+    
+    // Clear selections across all inner buttons cleanly
+    for(let i=1; i<=3; i++) {
+        let b = document.getElementById(`lb-btn-song${i}`);
+        if(b) b.classList.remove('selected');
+    }
+    let activeB = document.getElementById(`lb-btn-song${songId}`);
+    if(activeB) activeB.classList.add('selected');
+
+    // Added await here to fetch data cleanly for this specific songId
+    let scores = await getCustomLeaderboardArray('phigros', songId);
+    renderLeaderboardTableContent(scores);
+}
+
+function renderLeaderboardTableContent(records) {
+    records.sort((a, b) => b.score - a.score);
+    let topFive = records.slice(0, 5);
+    
+    let html = `<table class="lb-table">
+                  <thead>
+                     <tr>
+                        <th>排名 Rank</th>
+                        <th>玩家 Name</th>
+                        <th style="text-align:right;">總得分 Score</th>
+                     </tr>
+                  </thead>
+                  <tbody>`;
+    
+    for (let i = 0; i < 5; i++) {
+        let nameStr = (topFive[i] && topFive[i].name) ? topFive[i].name : "---";
+        let scoreStr = (topFive[i] && topFive[i].score !== undefined) ? topFive[i].score.toFixed(2) : "0.00";
+        html += `<tr>
+                    <td class="rank-num">#${i + 1}</td>
+                    <td>${nameStr}</td>
+                    <td class="score-val">${scoreStr}</td>
+                 </tr>`;
+    }
+    
+    html += `</tbody></table>`;
+    document.getElementById('lb-table-wrapper').innerHTML = html;
+}
+
+// ========================================================
+// SCORE REGISTRATION ENTRY LOGIC
+// ========================================================
+function calculateNameCostWeights(text) {
+    let total = 0;
+    for (let i = 0; i < text.length; i++) {
+        let code = text.charCodeAt(i);
+        if (code >= 0x4e00 && code <= 0x9fff) {
+            total += 3; 
+        } else {
+            total += 1; 
+        }
+    }
+    return total;
+}
+
+// Automatically updates the counter layout frame using your custom 16-point rule
+function updateWeightedNameCounter() {
+    const nameInput = document.getElementById('player-name-input');
+    const counterDisplay = document.getElementById('name-len-counter');
+    if (!nameInput || !counterDisplay) return;
+
+    let nameRaw = nameInput.value;
+    let weightedLength = 0;
+
+    for (let i = 0; i < nameRaw.length; i++) {
+        // Chinese/Non-ASCII = 2 points, English/ASCII = 1 point
+        weightedLength += (nameRaw.charCodeAt(i) > 127) ? 2 : 1;
+    }
+
+    counterDisplay.innerText = `字數計算: ${weightedLength} / 16`;
+
+    // If they go over 16, make the text red as a live warning statement
+    if (weightedLength > 16) {
+        counterDisplay.style.color = "#ff4757";
+        nameInput.style.borderColor = "#ff4757";
+    } else {
+        counterDisplay.style.color = "";
+        nameInput.style.borderColor = "";
+    }
+}
+
+function openSubmitScoreOverlay() {
+    document.getElementById('player-name-input').value = '';
+    document.getElementById('name-len-counter').innerText = `字數計算: 0 / 16`;
+    document.getElementById('submit-score-desc').innerText = `得分: ${targetFinalScore.toFixed(2)}`;
+    document.getElementById('submit-overlay').style.display = 'flex';
+}
+
+function closeSubmitScoreOverlay() {
+    document.getElementById('submit-overlay').style.display = 'none';
+}
+
+async function commitScoreSubmissionToStorage() {
+    const nameInput = document.getElementById('player-name-input');
+    const submitBtn = document.getElementById('btn-submit-confirm') || document.querySelector('.overlay-content button');
+    let nameRaw = nameInput ? nameInput.value.trim() : "";
+    
+    // 1. Check for empty input (Turns border red, no alert popup)
+    if (!nameRaw) {
+        if (nameInput) {
+            nameInput.style.borderColor = "#ff4757";
+            nameInput.placeholder = "請先輸入名字！";
+        }
+        return;
+    }
+    
+    // 2. Enforce the new custom string length limit (Max 16 points: Chinese = 2, English = 1)
+    let weightedLength = 0;
+    for (let i = 0; i < nameRaw.length; i++) {
+        // Characters above Unicode 127 are treated as Chinese/full-width text
+        weightedLength += (nameRaw.charCodeAt(i) > 127) ? 2 : 1;
+    }
+    
+    // If the points exceed 16, reset input box and show feedback silently
+    if (weightedLength > 16) {
+        if (nameInput) {
+            nameInput.style.borderColor = "#ff4757";
+            nameInput.value = ""; // Clears out the invalid text cleanly
+            nameInput.placeholder = "名字太長！(中文字算2點，英文算1點，上限16點)";
+        }
+        return;
+    }
+    
+    // Reset input style if all checks pass perfectly
+    if (nameInput) nameInput.style.borderColor = "";
+
+    // Visual feedback processing state
+    let originalBtnText = submitBtn ? submitBtn.innerText : "確認";
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerText = "上傳中...";
+    }
+    
+    // Track active level chart layout context
+    let songIdToSave = (currentMode === 'taiko') ? 1 : (typeof currentSongId !== 'undefined' ? currentSongId : 1);
+
+    try {
+        // FIXED: Swapped 'supabase' to 'window.supabaseClient' to match the head module pipelines cleanly
+        const { error } = await window.supabaseClient
+            .from('global_leaderboards')
+            .insert([
+                { 
+                    player_name: nameRaw, 
+                    score: parseFloat(targetFinalScore), 
+                    game_mode: currentMode,
+                    song_id: songIdToSave
+                }
+            ]);
+
+        if (error) throw error;
+        
+        // Success animation state flip
+        if (submitBtn) submitBtn.innerText = "成功！";
+        await new Promise(resolve => setTimeout(resolve, 600));
+        
+    } catch (err) {
+        console.error("Global database transmission failure:", err);
+        
+        // DEBUG POPUP: Left this intact so we can see any table constraints if they pop up
+        if (err && typeof err === 'object') {
+            alert("資料庫錯誤訊息: " + (err.message || err.details || JSON.stringify(err)));
+        } else {
+            alert("連線錯誤訊息: " + err);
+        }
+
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerText = "連線失敗，再試一次";
+        }
+        return; 
+    }
+    
+    // Reset interface buttons to factory bounds before minimizing the overlay layout
+    if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerText = originalBtnText;
+    }
+    
+    closeSubmitScoreOverlay();
+    resetToHomeMenu();
+}
+
 function gameLoop() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     let timeNow = performance.now() / 1000;
@@ -1128,7 +1574,7 @@ function gameLoop() {
     let countdownEndTime = 4 * BEAT_DURATION;
     let mobile = iSMobileDevice();
 
-    let phigrosBaselineY = mobile ? (canvas.height - 65) : (canvas.height - 110);
+    let phigrosBaselineY = mobile ? (canvas.height - 75) : (canvas.height - 120);
 
     if (gameState === 'TIMELINE_RUNNING') {
         ctx.save();
@@ -1167,7 +1613,6 @@ function gameLoop() {
             }
         }
 
-        // --- SUB-BEAT METRONOME AUDIO TICK LOGIC ---
         let totalMetronomeSubbeats = 32; 
         let currentCalculatedSubbeat = Math.floor(relativeTime / SUB_BEAT_DURATION);
 
@@ -1187,8 +1632,13 @@ function gameLoop() {
                     }
                 }
             } else if (currentMode === 'phigros') {
-                if (currentCalculatedSubbeat % 4 === 0) {
-                    scheduleHihatSample(audioClockTime);
+                // 🛠️ THE CORRECT FIX:
+                // Only play the automated metronome clicks DURING the 4-beat countdown (under sub-beat 16).
+                // This gives you the 4 startup beats you need, but prevents it from looping out to 8 beats!
+                if (currentCalculatedSubbeat < 16) {
+                    if (currentCalculatedSubbeat % 4 === 0) {
+                        scheduleHihatSample(audioClockTime);
+                    }
                 }
                 
                 if (currentCalculatedSubbeat === 9 && backgroundMusicBuffer && !bgmStarted) {
@@ -1198,7 +1648,6 @@ function gameLoop() {
                     const bgmGainNode = audioCtx.createGain();
                     
                     bgmSourceNode.buffer = backgroundMusicBuffer;
-                    // Adjusted up by 1.5x (from 1.65 to 2.475) for louder track performance
                     bgmGainNode.gain.setValueAtTime(2.475, audioClockTime + 0.05); 
                     
                     bgmSourceNode.connect(bgmGainNode);
@@ -1289,26 +1738,47 @@ function gameLoop() {
         } else if (currentMode === 'phigros') {
             let colWidth = canvas.width / 4;
             let keyLabels = ['A', 'S', 'D', 'F'];
+            
             for(let i=0; i<4; i++) {
-                ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
                 ctx.strokeRect(i * colWidth, 0, colWidth, canvas.height);
-                ctx.fillStyle = 'rgba(0, 184, 148, 0.08)';
-                ctx.fillRect(i * colWidth + 4, phigrosBaselineY - 15, colWidth - 8, 25);
-                ctx.save();
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-                ctx.font = 'bold 16px "Futura", "Century Gothic", Arial';
-                ctx.textAlign = 'center';
-                ctx.fillText(keyLabels[i], i * colWidth + (colWidth / 2), phigrosBaselineY + 35);
-                ctx.restore();
             }
+
             if (currentCombo >= 2) {
                 ctx.save();
                 ctx.textAlign = 'center';
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
-                ctx.font = 'bold 55px "Impact", "Futura"';
-                ctx.fillText(currentCombo, canvas.width / 2, 120);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.32)';
+                ctx.font = 'bold 70px "Impact", "Futura"';
+                ctx.fillText(currentCombo, canvas.width / 2, 150);
                 ctx.restore();
             }
+
+            ctx.save();
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = '#a8a8ff'; 
+            ctx.shadowColor = '#8a8aff';
+            ctx.shadowBlur = 10;
+            
+            ctx.strokeRect(4, phigrosBaselineY - 14, canvas.width - 8, 38);
+            ctx.restore();
+
+            for(let i=0; i<4; i++) {
+                ctx.fillStyle = 'rgba(168, 168, 255, 0.09)'; 
+                ctx.fillRect(i * colWidth + 4, phigrosBaselineY - 14, colWidth - 8, 38);
+                
+                // 🛠️ FIX 2: Check global mobile state before drawing text keys
+                if (!mobile) {
+                    ctx.save();
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = 'bold 18px "Futura", "Century Gothic", Arial';
+                    ctx.shadowColor = 'rgba(255, 255, 255, 0.5)';
+                    ctx.shadowBlur = 4;
+                    ctx.textAlign = 'center';
+                    ctx.fillText(keyLabels[i], i * colWidth + (colWidth / 2), phigrosBaselineY + 11);
+                    ctx.restore();
+                }
+            }
+
             activeNotes.forEach(note => {
                 let colLeftX = note.column * colWidth;
                 let yPos = phigrosBaselineY - ((note.targetOffset - relativeTime) * 450);
@@ -1318,8 +1788,9 @@ function gameLoop() {
                     if (relativeTime <= displayOnset + 0.15) {
                         if (judgment.text !== '') {
                             ctx.save();
-                            ctx.fillStyle = 'rgba(255, 255, 255, 0.22)'; 
-                            ctx.fillRect(colLeftX + 4, phigrosBaselineY - 10, colWidth - 8, 15);
+                            ctx.fillStyle = 'rgba(255, 255, 255, 0.35)'; 
+                            // FIXED: Realigned background gray flash layer parameters to match exact note boxes layout bounds
+                            ctx.fillRect(colLeftX + 4, phigrosBaselineY - 14, colWidth - 8, 38);
                             ctx.font = 'bold 22px "Microsoft JhengHei", "Segoe UI", sans-serif';
                             ctx.fillStyle = '#ffffff'; 
                             ctx.textAlign = 'center';
@@ -1330,7 +1801,7 @@ function gameLoop() {
                 } else {
                     if (yPos > 0 && yPos < phigrosBaselineY + 20) {
                         ctx.fillStyle = '#00cec9';
-                        ctx.fillRect(colLeftX + 4, yPos - 12, colWidth - 8, 24);
+                        ctx.fillRect(colLeftX + 4, yPos - 14, colWidth - 8, 38);
                     }
                 }
             });
@@ -1367,8 +1838,21 @@ function gameLoop() {
             }
         } else {
             scoreFinishedRisingGlobal = true;
-            let btnPhigrosNext = document.getElementById('btn-next-step');
-            if (btnPhigrosNext && btnPhigrosNext.disabled) btnPhigrosNext.disabled = false;
+            
+            // 🛠️ THE GHOST RESET FIX:
+            // Only inject the HTML if the container is currently empty!
+            // This ensures it sets the buttons once and keeps them visible on screen.
+            if (actionBtnContainer && actionBtnContainer.innerHTML === '') {
+                if (currentMode === 'taiko') {
+                    actionBtnContainer.innerHTML = ''; // Keep empty if Taiko handles clicks on canvas
+                } else if (currentMode === 'phigros') {
+                    actionBtnContainer.innerHTML = `
+                        <div style="display:flex; gap:15px; align-items:center; justify-content:center; width:100%; max-width:450px; position:relative; transform: translateY(-210px);">
+                            <button id="btn-submit-score-phigros" class="btn" style="flex:1; background:#1e1e24; border-color:#2f3542; color:#fff; transform: translateX(1vw);" onclick="openSubmitScoreOverlay()">紀錄分數</button>
+                            <button id="btn-next-step" class="btn-action" style="flex:1; margin-top:0; transform: scale(0.9); transform-origin: center;" onclick="resetToHomeMenu()">回主選單</button>
+                        </div>`;
+                }
+            }
         }
 
         ctx.save();
@@ -1499,6 +1983,18 @@ function gameLoop() {
             }
         } else {
             totalScoreFinishedRising = true;
+            scoreFinishedRisingGlobal = true; // Sync the global flag just in case
+            
+            // 🛠️ THE FINAL TRIUMPH FIX:
+            // Only inject the Taiko button layout if the container is completely empty.
+            // This pops it up instantly when totalScoreFinishedRising becomes true!
+            if (actionBtnContainer && actionBtnContainer.innerHTML === '') {
+                actionBtnContainer.innerHTML = `
+                    <div style="display:flex; gap:15px; align-items:center; justify-content:center; width:100%; max-width:500px; padding:0 20px; position:relative; top: -115px;">
+                        <button id="btn-submit-score-taiko" class="btn" style="flex:1; height:50px; padding:0; display:flex; align-items:center; justify-content:center; background:#1e1e24; border-color:#2f3542; color:#fff; position:relative; top: -9vh;" onclick="openSubmitScoreOverlay()">紀錄分數</button>
+                        <div style="flex:1; height:50px;"></div>
+                    </div>`;
+            }
         }
 
         ctx.save();
