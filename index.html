@@ -2069,8 +2069,8 @@ if (musicTriggerSubbeatCheck === musicTriggerStep && backgroundMusicBuffer && !b
                 let colLeftX = note.column * colWidth;
                 let yPos = phigrosBaselineY - ((note.targetOffset - relativeTime) * 450);
 
-                // Automatically matches the mobile check you already use
-                let isMobile = iSMobileDevice();
+                // 🎯 FORCE CHECK: If canvas width is small, it IS mobile mode. Period.
+                let isMobileMode = canvas.width < 768;
 
                 if (note.processed) {
                     let judgment = getJudgmentData(note.hitOffset, note.missedEntirely);
@@ -2085,10 +2085,11 @@ if (musicTriggerSubbeatCheck === musicTriggerStep && backgroundMusicBuffer && !b
                                 ctx.textAlign = 'center';
                                 ctx.textBaseline = 'middle';
                                 
-                                // 🎯 TEXT POSITION: Default desktop is center + 30. 
-                                // On phone, shifted up another 20px, landing exactly at the center line (+ 0).
+                                // Desktop position
                                 let taikoTextY = (canvas.height / 2) + 30;
-                                if (isMobile) {
+                                
+                                // 🎯 Forced Mobile Shift Up
+                                if (isMobileMode) {
                                     taikoTextY = canvas.height / 2; 
                                 }
                                 
@@ -2117,9 +2118,11 @@ if (musicTriggerSubbeatCheck === musicTriggerStep && backgroundMusicBuffer && !b
                     else if (currentMode === 'taiko') {
                         let judgmentLineX = 220; 
                         
-                        // CIRCLE POSITION: Default is trackBaseY + 45. On phone, it moves UP 40px (+ 5).
+                        // Desktop circle position
                         let trackBaseY = getMappedY(30) + 45; 
-                        if (isMobile) {
+                        
+                        // 🎯 Forced Mobile Shift Up
+                        if (isMobileMode) {
                             trackBaseY = getMappedY(30) + 5; 
                         }
                         
