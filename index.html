@@ -2069,7 +2069,7 @@ if (musicTriggerSubbeatCheck === musicTriggerStep && backgroundMusicBuffer && !b
                 let colLeftX = note.column * colWidth;
                 let yPos = phigrosBaselineY - ((note.targetOffset - relativeTime) * 450);
 
-                // 🎯 Automatically matches the mobile check you already use
+                // Automatically matches the mobile check you already use
                 let isMobile = iSMobileDevice();
 
                 if (note.processed) {
@@ -2085,10 +2085,11 @@ if (musicTriggerSubbeatCheck === musicTriggerStep && backgroundMusicBuffer && !b
                                 ctx.textAlign = 'center';
                                 ctx.textBaseline = 'middle';
                                 
-                                // 🎯 TEXT POSITION: Shifts up 10px on mobile (+20 instead of +30)
+                                // 🎯 TEXT POSITION: Default desktop is center + 30. 
+                                // On phone, shifted up another 20px, landing exactly at the center line (+ 0).
                                 let taikoTextY = (canvas.height / 2) + 30;
                                 if (isMobile) {
-                                    taikoTextY = (canvas.height / 2) + 20; 
+                                    taikoTextY = canvas.height / 2; 
                                 }
                                 
                                 ctx.fillText(judgment.text, 220, taikoTextY);
@@ -2116,7 +2117,7 @@ if (musicTriggerSubbeatCheck === musicTriggerStep && backgroundMusicBuffer && !b
                     else if (currentMode === 'taiko') {
                         let judgmentLineX = 220; 
                         
-                        // 🎯 CIRCLE POSITION: Shifts up 40px on mobile (+5 instead of +45)
+                        // CIRCLE POSITION: Default is trackBaseY + 45. On phone, it moves UP 40px (+ 5).
                         let trackBaseY = getMappedY(30) + 45; 
                         if (isMobile) {
                             trackBaseY = getMappedY(30) + 5; 
