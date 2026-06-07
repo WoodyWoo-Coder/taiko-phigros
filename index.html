@@ -381,8 +381,8 @@
 
         <div id="lb-song-subselector" style="display:none; flex-direction:column; gap:8px; margin-bottom:20px; align-items:center;">
             <p style="margin:0 0 5px 0; color:#a4b0be; font-size:14px; font-weight:bold;">選擇歌曲項目 View Records By Song:</p>
-            <button id="lb-btn-song1" class="btn" style="min-width:260px; padding:8px 15px; font-size:15px;" onclick="viewPhigrosSongLeaderboard(1)">刻在我心底的名字</button>
-            <button id="lb-btn-song2" class="btn" style="min-width:260px; padding:8px 15px; font-size:15px; opacity:0.4; cursor:not-allowed;" onclick="viewPhigrosSongLeaderboard(2)" disabled>🔒 Bonus Track 02</button>
+            <button id="lb-btn-song1" class="btn" style="min-width:260px; padding:8px 15px; font-size:15px;" onclick="viewPhigrosSongLeaderboard(1)">給愛麗絲(+爵士鼓)</button>
+            <button id="lb-btn-song2" class="btn" style="min-width:260px; padding:8px 15px; font-size:15px;" onclick="viewPhigrosSongLeaderboard(2)">刻在我心底的名字</button>
             <button id="lb-btn-song3" class="btn" style="min-width:260px; padding:8px 15px; font-size:15px; opacity:0.4; cursor:not-allowed;" onclick="viewPhigrosSongLeaderboard(3)" disabled>🔒 Bonus Track 03</button>
         </div>
 
@@ -407,8 +407,8 @@
 <div id="game-container">
     <div id="menu">
         <h1>擊擊復擊擊</h1>
-        <div class="credits">製作者: 郭覲德 林映澄</div>
-        <div class="version-tag">Version 1.20</div>
+        <div class="credits">製作者: 喜洋老師 郭覲德 林映澄</div>
+        <div class="version-tag">Version 1.21</div>
         
         <div id="tutorial-panel">
             <h3>玩法教學 (Tutorial)</h3>
@@ -433,22 +433,22 @@
         <div id="song-selector">
             <div class="song-card unlocked" onclick="selectSong(1)">
                 <div class="song-info">
-                    <h4>刻在我心底的名字</h4>
-                    <p>BPM: 67 | 難度: Hard</p>
+                    <h4>給愛麗絲(+爵士鼓)</h4>
+                    <p>BPM: 141 | 難度: Hard</p>
+                </div>
+                <div class="song-status">已解鎖 (Play)</div>
+            </div>
+            <div class="song-card unlocked" onclick="selectSong(2)">
+                <div class="song-info">
+                    <h4>刻在我心底的名字 (Backup)</h4>
+                    <p>BPM: 67 | 難度: Medium</p>
                 </div>
                 <div class="song-status">已解鎖 (Play)</div>
             </div>
             <div class="song-card locked">
                 <div class="song-info">
-                    <h4>Bonus Track 02</h4>
-                    <p>BPM: 120 | 難度: Insane</p>
-                </div>
-                <div class="song-status">🔒 未解鎖</div>
-            </div>
-            <div class="song-card locked">
-                <div class="song-info">
                     <h4>Bonus Track 03</h4>
-                    <p>BPM: 140 | 難度: Phigros</p>
+                    <p>BPM: 140 | 難度: Insane</p>
                 </div>
                 <div class="song-status">🔒 未解鎖</div>
             </div>
@@ -613,26 +613,35 @@ function warmupAudioContext() {
     if (audioCtx.state === 'suspended') audioCtx.resume();
 }
 
-async function loadDrumSounds() {
-    if (audioLoaded) return;
+async function loadDrumSounds(forceBgmOnly = false) {
+    // 🚨 Modified guard clause: If we are just swapping songs, skip this check!
+    if (audioLoaded && !forceBgmOnly) return;
+    
     warmupAudioContext();
     audioStatusDiv.style.color = '#ffd32a';
     audioStatusDiv.innerText = '⏳ 正在為您加載音遊打擊樂器組與背景音樂...';
     
     try {
-        const promises = Object.keys(DRUM_URLS).map(async (key) => {
-            const response = await fetch(DRUM_URLS[key]);
-            const arrayBuffer = await response.arrayBuffer();
-            return new Promise((resolve) => {
-                audioCtx.decodeAudioData(arrayBuffer, (buffer) => {
-                    drumBuffers[key] = buffer;
-                    resolve();
+        let promises = [];
+        
+        // Only load the drum hits if we aren't doing a quick song swap
+        if (!forceBgmOnly) {
+            promises = Object.keys(DRUM_URLS).map(async (key) => {
+                const response = await fetch(DRUM_URLS[key]);
+                const arrayBuffer = await response.arrayBuffer();
+                return new Promise((resolve) => {
+                    audioCtx.decodeAudioData(arrayBuffer, (buffer) => {
+                        drumBuffers[key] = buffer;
+                        resolve();
+                    });
                 });
             });
-        });
+        }
         
         const bgmPromise = (async () => {
-            const response = await fetch(BGM_URL);
+            const targetBgmUrl = window.currentBgmUrl || 'https://raw.githubusercontent.com/WoodyWoo-Coder/phigros-test/main/Elise.wav';
+            
+            const response = await fetch(targetBgmUrl);
             const arrayBuffer = await response.arrayBuffer();
             return new Promise((resolve) => {
                 audioCtx.decodeAudioData(arrayBuffer, (buffer) => {
@@ -679,7 +688,7 @@ window.addEventListener('DOMContentLoaded', () => {
     checkOrientation();
 });
 
-function playHitSound(column = null) {
+function playHitSound(column = null, noteObject = null) {
     warmupAudioContext();
     
     if (currentMode === 'taiko') {
@@ -699,12 +708,36 @@ function playHitSound(column = null) {
         const gainNode = audioCtx.createGain();
         
         source.buffer = drumBuffers[column];
+        
         if (column === 3) source.playbackRate.setValueAtTime(0.8, audioCtx.currentTime);
         
+        // --- CUSTOM VOLUME MIXING ---
         let targetVolume = 1.0; 
-        if (column === 1) targetVolume = 0.9; 
-        if (column === 2) targetVolume = 0.8; 
-        if (column === 3) targetVolume = 0.9; 
+        
+        if (selectedSongId === 1) {
+            // 🎹 SONG 1: FÜR ELISE SPECIFIC MIXING MAPPING
+            if (noteObject && noteObject.customVolume) {
+                targetVolume = noteObject.customVolume;
+            } else {
+                if (column === 0) targetVolume = 1.3;  // Bass Drum
+                if (column === 1) targetVolume = 0.35; // Snare Drum
+                if (column === 2) targetVolume = 0.2;  // Hihat
+                if (column === 3) targetVolume = 0.4;  // Cymbal
+            }
+        } 
+        else if (selectedSongId === 2) {
+            // 🎵 SONG 2: 刻在我心底的名字 4/4 MIXING LAYOUT
+            if (column === 0) targetVolume = 1.0; // Bass Drum
+            if (column === 1) targetVolume = 0.9; // Snare Drum
+            if (column === 2) targetVolume = 0.8; // Hihat
+            if (column === 3) targetVolume = 0.9; // Cymbal
+        }
+        else {
+            // FALLBACK FOR GENERIC MODES
+            if (column === 1) targetVolume = 0.9; 
+            if (column === 2) targetVolume = 0.8; 
+            if (column === 3) targetVolume = 0.9; 
+        }
         
         gainNode.gain.setValueAtTime(targetVolume, audioCtx.currentTime);
         source.connect(gainNode);
@@ -861,16 +894,53 @@ function selectMode(mode) {
 }
 
 function selectSong(songId) {
-    if (songId === 1) {
-        selectedSongId = 1;
-        currentBPM = 67;
-        BEAT_DURATION = 60 / currentBPM;
-        SUB_BEAT_DURATION = BEAT_DURATION / 4;
-        
-        document.querySelectorAll('.song-card').forEach(card => card.style.borderColor = '#2f3542');
-        document.querySelector('.song-card.unlocked').style.borderColor = '#00cec9';
-        updateStartButtonState();
+    selectedSongId = songId;
+    
+    // 1. Forcibly stop any currently playing audio node graph
+    if (window.bgmSourceNode) {
+        try {
+            window.bgmSourceNode.stop(0);
+            window.bgmSourceNode.disconnect();
+        } catch (e) {
+            // Ignore if nothing was playing
+        }
+        window.bgmSourceNode = null;
     }
+    
+    // 2. Clear out the flags so the game loop knows to trigger fresh
+    bgmStarted = false;
+    
+    if (songId === 1) {
+        currentBPM = 70.5; // Für Elise BPM
+        BEAT_DURATION = 60 / currentBPM;
+        window.stepsPerLoop = 6; 
+        SUB_BEAT_DURATION = BEAT_DURATION / 4; 
+        window.currentBgmUrl = 'https://raw.githubusercontent.com/WoodyWoo-Coder/phigros-test/main/Elise.wav';
+        
+    } else if (songId === 2) {
+        currentBPM = 67; // Backup song parameters
+        BEAT_DURATION = 60 / currentBPM;
+        window.stepsPerLoop = 16; 
+        SUB_BEAT_DURATION = BEAT_DURATION / 4;
+        window.currentBgmUrl = 'https://raw.githubusercontent.com/WoodyWoo-Coder/phigros-test/main/name.wav';
+    }
+
+    // 3. Highlight the correct UI Card
+    document.querySelectorAll('.song-card').forEach(card => card.style.borderColor = '#2f3542');
+    const songCards = document.querySelectorAll('.song-card');
+    if (songId === 1 && songCards[0]) {
+        songCards[0].style.borderColor = '#00cec9';
+    } else if (songId === 2 && songCards[1]) {
+        songCards[1].style.borderColor = '#00cec9';
+    }
+    
+    // 4. 🚨 FORCE RE-FETCH THE AUDIO TRACK
+    // Pass true to tell the loader to ignore the 'audioLoaded' guard check and pull the new file
+    if (typeof loadDrumSounds === "function") {
+        loadDrumSounds(true);
+    }
+    
+    updateStartButtonState();
 }
 
 function startGame() {
@@ -909,20 +979,71 @@ function generateSession() {
     }
 }
 
-function calculateAccuracyScore(offset) {
-    let x = Math.abs(offset);
-    if (x >= 0.120) return 0.0;
-    let score = 10.0 * Math.exp(-252 * (x * x));
+function calculateAccuracyScore(offset, modeKey = 'taiko', currentBPM = 67) {
+    let x_offset = Math.abs(offset); // Converts offset to absolute seconds
+    
+    // ------------------------------------------------------------
+    // PHIGROS MODE: Dynamic BPM-scaled Curve (Only runs if explicitly 'phigros')
+    // ------------------------------------------------------------
+    if (modeKey === 'phigros') {
+        const bpm = currentBPM || 67; // Fallback to 67 if BPM is missing
+        
+        // 1. Calculate the dynamic Miss boundary in seconds
+        const missBoundarySeconds = 7.25806 / bpm;
+        
+        // 2. Hard reset to 0.0 if they exceed the dynamic boundary
+        if (x_offset >= missBoundarySeconds) return 0.0;
+        
+        // 3. Dynamic Tightness Factor
+        let dynamicMultiplier = 0.048 * (bpm * bpm);
+        
+        // 4. Calculate the score using the dynamic bell curve
+        let score = 10.0 * Math.exp(-dynamicMultiplier * (x_offset * x_offset));
+        return Math.max(0.0, Math.min(10.0, score));
+    }
+    
+    // ------------------------------------------------------------
+    // TAIKO MODE: Your absolute legacy baseline!
+    // Acts as the ultimate fallback so Taiko can NEVER crash or use dynamic math.
+    // ------------------------------------------------------------
+    if (x_offset >= 0.120) return 0.0;
+    let score = 10.0 * Math.exp(-252 * (x_offset * x_offset));
     return Math.max(0.0, Math.min(10.0, score));
 }
 
-function getJudgmentData(offset, isMissedEntirely) {
+function getJudgmentData(offset, isMissedEntirely, modeKey, currentBPM = 67) {
+    // 1. Instant Miss processing
     if (isMissedEntirely) return { color: '#ff4d4d', text: '' }; 
-    let absOffset = Math.abs(offset);
-    if (absOffset <= 0.030) return { color: '#ffffff', text: '完美' };   
-    if (absOffset <= 0.060) return { color: '#ffffff', text: '良' };      
-    if (absOffset <= 0.120) return { color: '#ffffff', text: '差' };       
-    return { color: '#ff4d4d', text: '' };                              
+    
+    // 2. Safely grab absolute values in both seconds and milliseconds
+    let absOffsetSec = Math.abs(offset);
+    let absOffsetMs = absOffsetSec * 1000;
+    
+    // 🎯 TACO AUTOMATIC ACCURACY FAIL-SAFE
+    // If the offset falls cleanly into standard Taiko second-based thresholds,
+    // intercept it immediately and return the text!
+    if (absOffsetSec <= 0.030 || absOffsetMs <= 30)  return { color: '#ffffff', text: '完美' };   
+    if (absOffsetSec <= 0.060 || absOffsetMs <= 60)  return { color: '#ffffff', text: '良' };      
+    if (absOffsetSec <= 0.120 || absOffsetMs <= 120) return { color: '#ffffff', text: '差' };       
+
+    // ------------------------------------------------------------
+    // PHIGROS MODE FALLBACK: Dynamic BPM-Scaled Timing Ranges
+    // ------------------------------------------------------------
+    const x = currentBPM || 67;
+    
+    const perfectBoundary = 2419.35 / x; 
+    const goodBoundary    = 4838.71 / x; 
+    const badBoundary     = 7258.06 / x; 
+    
+    if (absOffsetMs < perfectBoundary) {
+        return { color: '#ffffff', text: '完美' };
+    } else if (absOffsetMs < goodBoundary) {
+        return { color: '#ffffff', text: '良' };
+    } else if (absOffsetMs < badBoundary) {
+        return { color: '#ffffff', text: '差' };
+    }
+    
+    return { color: '#ff4d4d', text: '' }; 
 }
 
 function buildTimelineForQuestion() {
@@ -940,6 +1061,7 @@ function buildTimelineForQuestion() {
     window.scrollTo({ top: 0, behavior: 'instant' });
     
     if (currentMode === 'taiko') {
+        // 🥁 TAIKO MODE: ABSOLUTELY UNCHANGED
         let patternIDs = questions[currentQuestionIndex];
         for (let beatIdx = 0; beatIdx < 4; beatIdx++) {
             let patternNum = patternIDs[beatIdx];
@@ -961,23 +1083,141 @@ function buildTimelineForQuestion() {
             }
         }
     } else {
-        // RESTORED: Kept at 4 * BEAT_DURATION so notes enter perfectly on target
+        // 🛠️ PHIGROS MODE: DYNAMIC NOTE TIMELINE MAP GENERATOR FOR SONGS
         let countInPeriod = 4 * BEAT_DURATION; 
-        for (let s = 0; s < 256; s++) {
-            let itemTargetOffset = countInPeriod + (s * SUB_BEAT_DURATION);
+        
+        if (selectedSongId === 2) {
+            // 🎵 SONG 2: KEEP ORIGINAL BACKUP 4/4 MAPPING COMPLETELY UNTOUCHED
+            for (let s = 0; s < 256; s++) {
+                let itemTargetOffset = countInPeriod + (s * SUB_BEAT_DURATION);
+                
+                if (rawBassPattern[s] === 1) {
+                    activeNotes.push({ id: noteIdCounter++, targetOffset: itemTargetOffset, column: 0, hitScore: null, hitOffset: null, processed: false, missedEntirely: false });
+                }
+                if (rawSnarePattern[s] === 1) {
+                    activeNotes.push({ id: noteIdCounter++, targetOffset: itemTargetOffset, column: 1, hitScore: null, hitOffset: null, processed: false, missedEntirely: false });
+                }
+                if (rawHihatPattern[s] === 1) {
+                    activeNotes.push({ id: noteIdCounter++, targetOffset: itemTargetOffset, column: 2, hitScore: null, hitOffset: null, processed: false, missedEntirely: false });
+                }
+                if (rawCymbalPattern[s] === 1) {
+                    activeNotes.push({ id: noteIdCounter++, targetOffset: itemTargetOffset, column: 3, hitScore: null, hitOffset: null, processed: false, missedEntirely: false });
+                }
+            }
+        } 
+        else {
+            // 🎹 SONG 1: NEW FÜR ELISE RHYTHMIC TIMELINE MAPPING (6-Step Loop Grid)
             
-            if (rawBassPattern[s] === 1) {
-                activeNotes.push({ id: noteIdCounter++, targetOffset: itemTargetOffset, column: 0, hitScore: null, hitOffset: null, processed: false, missedEntirely: false });
+            // ❌ INTRO SECTION REMOVED: No falling blocks during audible startup!
+            
+            // 2. DEFINING SEQUENCER CYCLE MATCHING SETS (Cycles 1 to 50)
+            const cymbalSwapCycles = new Set([1, 5, 9, 13, 23, 27, 31, 35, 38, 45, 49]);
+            const fillSet1         = new Set([4, 8, 12, 26, 30, 34, 48]);
+            const fillSet2         = new Set([7, 29]);
+            const fillSet3         = new Set([15, 37]);
+            
+            // Progression Phase Blocks broken into 3 Evolving States
+            const state1Cycles     = new Set([16, 17, 18, 19, 38, 39, 40, 41]); // Block State 1
+            const state2Cycles     = new Set([20, 21, 42, 43]);                 // Block State 2
+            const state3Cycles     = new Set([22, 44]);                         // Block State 3
+            
+            // Loop through 300 total steps (50 loops * 6 steps per loop block)
+            for (let loopStep = 0; loopStep < 300; loopStep++) {
+                // 🛠️ STRAIGHT ORDER FIX: Shift by -8 sub-beats (1 full beat) to drop rectangles earlier
+                let itemTargetOffset = countInPeriod + ((loopStep - 4) * SUB_BEAT_DURATION);
+                
+                let currentCycle = Math.floor(loopStep / 6) + 1; // Cycle loop counter (1 to 50)
+                let idx = loopStep % 6;                          // Step position inside current loop block (0 to 5)
+
+                // --- STATE 1 CYCLES BLOCK ---
+                if (state1Cycles.has(currentCycle)) {
+                    // Pattern: [C+B] 0 B S B 0
+                    if (idx === 0) {
+                        activeNotes.push({ id: noteIdCounter++, targetOffset: itemTargetOffset, column: 3, hitScore: null, hitOffset: null, processed: false, missedEntirely: false }); // Cymbal
+                        activeNotes.push({ id: noteIdCounter++, targetOffset: itemTargetOffset, column: 0, hitScore: null, hitOffset: null, processed: false, missedEntirely: false }); // Bass
+                    }
+                    if (idx === 2 || idx === 4) {
+                        activeNotes.push({ id: noteIdCounter++, targetOffset: itemTargetOffset, column: 0, hitScore: null, hitOffset: null, processed: false, missedEntirely: false }); // Bass
+                    }
+                    if (idx === 3) {
+                        activeNotes.push({ id: noteIdCounter++, targetOffset: itemTargetOffset, column: 1, hitScore: null, hitOffset: null, processed: false, missedEntirely: false }); // Snare
+                    }
+                }
+                // --- STATE 2 CYCLES BLOCK ---
+                else if (state2Cycles.has(currentCycle)) {
+                    // Pattern: B B S B S S
+                    if (idx === 0 || idx === 1 || idx === 3) {
+                        activeNotes.push({ id: noteIdCounter++, targetOffset: itemTargetOffset, column: 0, hitScore: null, hitOffset: null, processed: false, missedEntirely: false }); // Bass
+                    }
+                    if (idx === 2 || idx === 4 || idx === 5) {
+                        activeNotes.push({ id: noteIdCounter++, targetOffset: itemTargetOffset, column: 1, hitScore: null, hitOffset: null, processed: false, missedEntirely: false }); // Snare
+                    }
+                }
+                // --- STATE 3 CYCLES BLOCK (Pure Snare Roll) ---
+                else if (state3Cycles.has(currentCycle)) {
+                    // Pattern: S S S S S S
+                    activeNotes.push({ id: noteIdCounter++, targetOffset: itemTargetOffset, column: 1, hitScore: null, hitOffset: null, processed: false, missedEntirely: false }); // Snare
+                }
+                // --- FILL SET 1 (Amplified Bass Volume) ---
+                else if (fillSet1.has(currentCycle)) {
+                    // Pattern: C B C B S S
+                    if (idx === 0 || idx === 2) {
+                        activeNotes.push({ id: noteIdCounter++, targetOffset: itemTargetOffset, column: 3, hitScore: null, hitOffset: null, processed: false, missedEntirely: false }); // Cymbal
+                    }
+                    if (idx === 1 || idx === 3) {
+                        activeNotes.push({ id: noteIdCounter++, targetOffset: itemTargetOffset, column: 0, hitScore: null, hitOffset: null, processed: false, missedEntirely: false, customVolume: 1.95 }); // Amplified Bass
+                    }
+                    if (idx === 4 || idx === 5) {
+                        activeNotes.push({ id: noteIdCounter++, targetOffset: itemTargetOffset, column: 1, hitScore: null, hitOffset: null, processed: false, missedEntirely: false }); // Snare
+                    }
+                }
+                // --- FILL SET 2 (Double Snare Variant) ---
+                else if (fillSet2.has(currentCycle)) {
+                    // Pattern: B B 0 B S S
+                    if (idx === 0 || idx === 1 || idx === 3) {
+                        activeNotes.push({ id: noteIdCounter++, targetOffset: itemTargetOffset, column: 0, hitScore: null, hitOffset: null, processed: false, missedEntirely: false }); // Bass
+                    }
+                    if (idx === 4 || idx === 5) {
+                        activeNotes.push({ id: noteIdCounter++, targetOffset: itemTargetOffset, column: 1, hitScore: null, hitOffset: null, processed: false, missedEntirely: false }); // Snare
+                    }
+                }
+                // --- FILL SET 3 (Single Snare Variant) ---
+                else if (fillSet3.has(currentCycle)) {
+                    // Pattern: B B 0 B S 0
+                    if (idx === 0 || idx === 1 || idx === 3) {
+                        activeNotes.push({ id: noteIdCounter++, targetOffset: itemTargetOffset, column: 0, hitScore: null, hitOffset: null, processed: false, missedEntirely: false }); // Bass
+                    }
+                    if (idx === 4) {
+                        activeNotes.push({ id: noteIdCounter++, targetOffset: itemTargetOffset, column: 1, hitScore: null, hitOffset: null, processed: false, missedEntirely: false }); // Snare
+                    }
+                }
+                // --- CORE CYCLE A (Standard / Downbeat Cymbal Swap) ---
+                else {
+                    // Bass Drum Block Pattern: B 0 0 B 0 0
+                    if (idx === 0 || idx === 3) {
+                        activeNotes.push({ id: noteIdCounter++, targetOffset: itemTargetOffset, column: 0, hitScore: null, hitOffset: null, processed: false, missedEntirely: false });
+                    }
+                    
+                    // Snare Drum Block Pattern: 0 0 0 0 S 0
+                    if (idx === 4) {
+                        activeNotes.push({ id: noteIdCounter++, targetOffset: itemTargetOffset, column: 1, hitScore: null, hitOffset: null, processed: false, missedEntirely: false });
+                    }
+                    
+                    // Hi-Hat / Cymbal Swap Pattern: Modified to alternate H 0 H 0 H 0
+                    if (idx % 2 === 0) { // Only drops a hi-hat note on steps 0, 2, and 4!
+                        if (idx === 0 && cymbalSwapCycles.has(currentCycle)) {
+                            activeNotes.push({ id: noteIdCounter++, targetOffset: itemTargetOffset, column: 3, hitScore: null, hitOffset: null, processed: false, missedEntirely: false }); // Cymbal Swap
+                        } else {
+                            activeNotes.push({ id: noteIdCounter++, targetOffset: itemTargetOffset, column: 2, hitScore: null, hitOffset: null, processed: false, missedEntirely: false }); // Standard Hi-Hat
+                        }
+                    }
+                }
             }
-            if (rawSnarePattern[s] === 1) {
-                activeNotes.push({ id: noteIdCounter++, targetOffset: itemTargetOffset, column: 1, hitScore: null, hitOffset: null, processed: false, missedEntirely: false });
-            }
-            if (rawHihatPattern[s] === 1) {
-                activeNotes.push({ id: noteIdCounter++, targetOffset: itemTargetOffset, column: 2, hitScore: null, hitOffset: null, processed: false, missedEntirely: false });
-            }
-            if (rawCymbalPattern[s] === 1) {
-                activeNotes.push({ id: noteIdCounter++, targetOffset: itemTargetOffset, column: 3, hitScore: null, hitOffset: null, processed: false, missedEntirely: false });
-            }
+            
+            // 3. FINAL OUTRO TERMINATOR: One isolated final single Bass Drum hit precisely at step 300
+            // 🛠️ STRAIGHT ORDER FIX: Pulling the outro hit back by 8 sub-beats as well (300 - 8 = 292)
+            let finalTargetOffset = countInPeriod + (296 * SUB_BEAT_DURATION);
+            activeNotes.push({ id: noteIdCounter++, targetOffset: finalTargetOffset, column: 0, hitScore: null, hitOffset: null, processed: false, missedEntirely: false });
         }
     }
 }
@@ -1066,32 +1306,87 @@ function resetToHomeMenu() {
 
 function handleHit(forcedColumn = null) {
     if (gameState !== 'TIMELINE_RUNNING') return;
+    
     let relativeTime = (performance.now() / 1000) - timelineStartTime;
-    let countdownEndTime = 4 * BEAT_DURATION;
+    
+    // 🛠️ TAIKO SAFETY GUARD FOR THE COUNTDOWN BALANCER
+    let beatsInCountdown = 4; // Default baseline for Taiko
+    let currentBeatDuration = (typeof BEAT_DURATION !== 'undefined') ? BEAT_DURATION : 0.5; // Fallback to 0.5s if undefined
+    
+    // Only apply the dynamic song checks if we are explicitly playing Phigros mode
+    if (currentMode === 'phigros') {
+        beatsInCountdown = (selectedSongId === 1) ? 3 : 4;
+    }
+    
+    let countdownEndTime = beatsInCountdown * currentBeatDuration;
+    
     if (relativeTime >= (countdownEndTime - WINDOW_MAX)) {
         playHitSound(forcedColumn);
     }
+    
+    // --- NOTE TRACKING TIMELINE LOOPS ---
     for (let i = 0; i < activeNotes.length; i++) {
         let note = activeNotes[i];
         if (!note.processed) {
             if (currentMode !== 'taiko' && forcedColumn !== null && note.column !== forcedColumn) continue; 
+            
             let timeDifference = relativeTime - note.targetOffset;
             if (Math.abs(timeDifference) <= WINDOW_MAX) {
                 note.hitOffset = timeDifference;
-                note.hitScore = calculateAccuracyScore(timeDifference);
+                
+                // Uses your secure fallback function we fixed in the previous step
+                note.hitScore = calculateAccuracyScore(timeDifference, currentMode, currentBPM);
+                
                 note.processed = true; 
                 note.hitTimestamp = relativeTime;
                 validHitsOffsetSum += timeDifference;
                 validHitsCount++;
-                let judgment = getJudgmentData(timeDifference, false);
+                
+                let judgment = getJudgmentData(timeDifference, false, currentMode, currentBPM);
                 if (judgment.text === '完美' || judgment.text === '良') {
                     currentCombo++;
                 } else {
                     currentCombo = 0; 
                 }
-                break; 
+                break;
             }
         }
+    }
+}
+// ========================================================
+// LEADERBOARD TAB SWITCHING & INITIALIZATION LOGIC
+// ========================================================
+
+async function switchLeaderboardMode(m) {
+    currentLBMode = m;
+    const btnT = document.getElementById('lb-btn-taiko');
+    const btnP = document.getElementById('lb-btn-phigros');
+    const subSel = document.getElementById('lb-song-subselector');
+    
+    // Safety check: only modify elements if they actually exist in your HTML template layout
+    if (m === 'taiko') {
+        if (btnT) btnT.classList.add('selected');
+        if (btnP) btnP.classList.remove('selected');
+        if (subSel) subSel.style.display = 'none';
+        
+        // Fetch Taiko scores (defaults to song_id 1 internally)
+        let scores = await getCustomLeaderboardArray('taiko', 1);
+        renderLeaderboardTableContent(scores);
+    } else {
+        if (btnP) btnP.classList.add('selected');
+        if (btnT) btnT.classList.remove('selected');
+        if (subSel) subSel.style.display = 'flex';
+        
+        // 🛠️ FIX PHIGROS DEFAULT TAB:
+        // When switching to Phigros, explicitly light up Song 1 (給愛麗絲+爵士鼓) button 
+        // and turn off Song 2 (刻在我心底的名字) button!
+        const btnS1 = document.getElementById('lb-btn-song1');
+        const btnS2 = document.getElementById('lb-btn-song2');
+        if (btnS1) btnS1.classList.add('selected');
+        if (btnS2) btnS2.classList.remove('selected');
+        
+        // 🛠️ Run the fetcher targeting Song 1 (給愛麗絲+爵士鼓) so it shows the 40-0 defaults first!
+        await viewPhigrosSongLeaderboard(1);
     }
 }
 
@@ -1284,55 +1579,85 @@ async function getCustomLeaderboardArray(modeKey, songId = 1) {
             .select('player_name, score')
             .eq('game_mode', modeKey);
             
+        let targetId = parseInt(songId); 
+
+        // 🛠️ THE SECRET TRANSLATION LAYER
         if (modeKey === 'phigros') {
-            query = query.eq('song_id', songId);
+            if (targetId === 1) {
+                targetId = 2; // UI requested Für Elise (1) -> Fetch from database slot 2 (empty/defaults)
+            } else if (targetId === 2) {
+                targetId = 1; // UI requested 刻在 (2) -> Fetch from database slot 1 (where old live records live)
+            }
         } else {
-            query = query.eq('song_id', 1);
+            targetId = 1; // Taiko stays locked to 1
         }
+            
+        query = query.eq('song_id', targetId);
 
         const { data, error } = await query
             .order('score', { ascending: false })
-            .limit(5);
+            .limit(15); // Correctly pulling up to 15 records
 
         if (error) throw error;
         
-        // Define your baseline default benchmarks
+        // --- DEFINE THE BENCHMARKS ---
         const taikoDefaults = [
-            { name: "Player 1", score: 20.0 },
-            { name: "Player 2", score: 15.0 },
-            { name: "Player 3", score: 10.0 },
-            { name: "Player 4", score: 5.0 },
-            { name: "Player 5", score: 0.0 }
+            { name: "Player 1", score: 20.0 }, { name: "Player 2", score: 15.0 },
+            { name: "Player 3", score: 10.0 }, { name: "Player 4", score: 5.0 }, { name: "Player 5", score: 0.0 }
         ];
 
-        const phigrosDefaults = [
-            { name: "Player 1", score: 40.0 },
-            { name: "Player 2", score: 30.0 },
-            { name: "Player 3", score: 20.0 },
-            { name: "Player 4", score: 10.0 },
-            { name: "Player 5", score: 0.0 }
+        // Based on the INCOMING songId from the UI:
+        const phigrosSong1Defaults = [
+            { name: "Player 1", score: 30.0 },
+            { name: "Player 2", score: 28.0 },
+            { name: "Player 3", score: 26.0 },
+            { name: "Player 4", score: 24.0 },
+            { name: "Player 5", score: 22.0 },
+            { name: "Player 6", score: 20.0 },
+            { name: "Player 7", score: 18.0 },
+            { name: "Player 8", score: 16.0 },
+            { name: "Player 9", score: 14.0 },
+            { name: "Player 10", score: 12.0 },
+            { name: "Player 11", score: 10.0 },
+            { name: "Player 12", score: 8.0 },
+            { name: "Player 13", score: 6.0 },
+            { name: "Player 14", score: 4.0 },
+            { name: "Player 15", score: 2.0 }
         ];
 
-        // Pick the right default list based on mode
-        const defaults = (modeKey === 'taiko') ? taikoDefaults : phigrosDefaults;
+        // Song 2 (刻在) defaults
+        const phigrosSong2Defaults = [
+            { name: "Player 1", score: 0.0 }, { name: "Player 2", score: 0.0 },
+            { name: "Player 3", score: 0.0 }, { name: "Player 4", score: 0.0 }, { name: "Player 5", score: 0.0 }
+        ];
 
-        // Map live data from the database
+        // Use the original incoming songId to pick the right display placeholders
+        let defaults = taikoDefaults;
+        if (modeKey === 'phigros') {
+            defaults = (parseInt(songId) === 2) ? phigrosSong2Defaults : phigrosSong1Defaults;
+        }
+
         let liveScores = (data || []).map(row => ({ 
             name: row.player_name, 
             score: parseFloat(row.score) 
         }));
 
-        // 🧠 MAGIC LINES: If liveScores has fewer than 5 entries, pad it with the remaining defaults!
-        while (liveScores.length < 5) {
-            let nextDefaultIndex = liveScores.length; // e.g. if we have 1 score, grab defaults[1] (Player 2)
-            liveScores.push(defaults[nextDefaultIndex]);
+        // 🛠️ FIXED: Pad the array up to 15 records instead of capping at 5!
+        while (liveScores.length < 15) {
+            let nextDefaultIndex = liveScores.length; 
+            
+            // Safety backup: if defaults array is shorter than 15 (like Taiko or Song 2), 
+            // fallback gracefully to a anonymous placeholder object to avoid crashing
+            let backupData = defaults[nextDefaultIndex] || { name: `Player ${nextDefaultIndex + 1}`, score: 0.0 };
+            liveScores.push(backupData);
         }
 
         return liveScores;
 
     } catch (err) {
         console.error("Live global server timeout or connection error:", err);
-        return Array.from({ length: 5 }, (_, i) => ({ name: "Server Syncing...", score: 0.0 }));
+        // 🛠️ FIXED: Return 15 server placeholder rows instead of 5
+        return Array.from({ length: 15 }, (_, i) => ({ name: "Server Syncing...", score: 0.0 }));
     }
 }
 
@@ -1354,29 +1679,25 @@ function closeLeaderboardOverlay() {
     document.getElementById('leaderboard-overlay').style.display = 'none';
 }
 
-// Updated: Added async/await to wait for the cloud database to download scores
-async function switchLeaderboardMode(m) {
-    currentLBMode = m;
-    const btnT = document.getElementById('lb-btn-taiko');
-    const btnP = document.getElementById('lb-btn-phigros');
-    const subSel = document.getElementById('lb-song-subselector');
+async function viewPhigrosSongLeaderboard(songId) {
+    currentLBSongId = songId;
     
-    if (m === 'taiko') {
-        btnT.classList.add('selected');
-        btnP.classList.remove('selected');
-        subSel.style.display = 'none';
-        
-        // Added await here to wait for live database
-        let scores = await getCustomLeaderboardArray('taiko');
-        renderLeaderboardTableContent(scores);
-    } else {
-        btnP.classList.add('selected');
-        btnT.classList.remove('selected');
-        subSel.style.display = 'flex';
-        
-        document.getElementById('lb-btn-song1').classList.add('selected');
-        await viewPhigrosSongLeaderboard(1);
+    // Clear selections across all inner buttons cleanly
+    for(let i = 1; i <= 3; i++) {
+        let b = document.getElementById(`lb-btn-song${i}`);
+        // 🛠️ SAFETY CHECK: Only modify class lists if the button element actually exists in the DOM
+        if (b) {
+            b.classList.remove('selected');
+        }
     }
+    let activeB = document.getElementById(`lb-btn-song${songId}`);
+    if (activeB) {
+        activeB.classList.add('selected');
+    }
+
+    // Fetch live data cleanly matching the new songId rules (1 = Für Elise, 2 = 刻在)
+    let scores = await getCustomLeaderboardArray('phigros', songId);
+    renderLeaderboardTableContent(scores);
 }
 
 // Updated: Added async/await to wait for the specific song track cloud leaderboard data
@@ -1397,8 +1718,11 @@ async function viewPhigrosSongLeaderboard(songId) {
 }
 
 function renderLeaderboardTableContent(records) {
+    // 1. Sort records from highest score to lowest score
     records.sort((a, b) => b.score - a.score);
-    let topFive = records.slice(0, 5);
+    
+    // 🛠️ INCREASED TO 15: Slice the top 15 records instead of 5
+    let topFifteen = records.slice(0, 15);
     
     let html = `<table class="lb-table">
                   <thead>
@@ -1410,9 +1734,11 @@ function renderLeaderboardTableContent(records) {
                   </thead>
                   <tbody>`;
     
-    for (let i = 0; i < 5; i++) {
-        let nameStr = (topFive[i] && topFive[i].name) ? topFive[i].name : "---";
-        let scoreStr = (topFive[i] && topFive[i].score !== undefined) ? topFive[i].score.toFixed(2) : "0.00";
+    // 🛠️ INCREASED TO 15: Loop exactly 15 times to build the rows
+    for (let i = 0; i < 15; i++) {
+        let nameStr = (topFifteen[i] && topFifteen[i].name) ? topFifteen[i].name : "---";
+        let scoreStr = (topFifteen[i] && topFifteen[i].score !== undefined) ? parseFloat(topFifteen[i].score).toFixed(2) : "0.00";
+        
         html += `<tr>
                     <td class="rank-num">#${i + 1}</td>
                     <td>${nameStr}</td>
@@ -1421,7 +1747,17 @@ function renderLeaderboardTableContent(records) {
     }
     
     html += `</tbody></table>`;
-    document.getElementById('lb-table-wrapper').innerHTML = html;
+    
+    // 2. Inject the HTML table markup into the wrapper box
+    const wrapper = document.getElementById('lb-table-wrapper');
+    if (wrapper) {
+        wrapper.innerHTML = html;
+        
+        // 🛠️ FORCE SCROLLBAR ON THE WRAPPER VIA JAVASCRIPT
+        // This locks the viewport frame and gives it a scrollbar so 15 rows don't explode your UI!
+        wrapper.style.maxHeight = "360px"; // You can change 360px to whatever height fits best
+        wrapper.style.overflowY = "auto";
+    }
 }
 
 // ========================================================
@@ -1518,8 +1854,17 @@ async function commitScoreSubmissionToStorage() {
         submitBtn.innerText = "上傳中...";
     }
     
-    // Track active level chart layout context
-    let songIdToSave = (currentMode === 'taiko') ? 1 : (typeof currentSongId !== 'undefined' ? currentSongId : 1);
+    // 🛠️ MATCHING UPLOAD TRANSLATION LAYER:
+    // If mode is Taiko, lock to database slot 1. 
+    // If Phigros, swap the IDs behind the scenes so the database matches your new UI rules!
+    let songIdToSave = 1;
+    if (currentMode === 'phigros' && typeof selectedSongId !== 'undefined') {
+        if (selectedSongId === 1) {
+            songIdToSave = 2; // UI says Song 1 (Für Elise) -> Save to database slot 2 (empty/fresh)
+        } else if (selectedSongId === 2) {
+            songIdToSave = 1; // UI says Song 2 (刻在) -> Save to database slot 1 (where old records live)
+        }
+    }
 
     try {
         // FIXED: Swapped 'supabase' to 'window.supabaseClient' to match the head module pipelines cleanly
@@ -1632,27 +1977,61 @@ function gameLoop() {
                     }
                 }
             } else if (currentMode === 'phigros') {
-                // 🛠️ THE CORRECT FIX:
-                // Only play the automated metronome clicks DURING the 4-beat countdown (under sub-beat 16).
-                // This gives you the 4 startup beats you need, but prevents it from looping out to 8 beats!
-                if (currentCalculatedSubbeat < 16) {
-                    if (currentCalculatedSubbeat % 4 === 0) {
-                        scheduleHihatSample(audioClockTime);
+                // 🛠️ DYNAMIC STARTUP METRONOME COUNTDOWN
+                let maxCountdownSteps = (selectedSongId === 1) ? 12 : 16; // 12 steps (3 beats) for Elise, 16 steps (4 beats) for Song 2
+                let musicTriggerStep = (selectedSongId === 1) ? 3 : 9;    // Piano enters at step 4 for Elise, subbeat 9 for original song
+                
+                if (currentCalculatedSubbeat < maxCountdownSteps) {
+                    // For Elise, play the intro clicks on even steps during countdown
+                    if (selectedSongId === 1) {
+                        if (currentCalculatedSubbeat <= 10 && currentCalculatedSubbeat % 2 === 0) {
+                            scheduleHihatSample(audioClockTime);
+                        }
+                    } else {
+                        // Original song standard quarter-note click layout
+                        if (currentCalculatedSubbeat % 4 === 0) {
+                            scheduleHihatSample(audioClockTime);
+                        }
                     }
                 }
                 
-                if (currentCalculatedSubbeat === 9 && backgroundMusicBuffer && !bgmStarted) {
-                    bgmStarted = true;
-                    warmupAudioContext();
-                    bgmSourceNode = audioCtx.createBufferSource();
-                    const bgmGainNode = audioCtx.createGain();
+                // 🎹 DYNAMIC BACKGROUND MUSIC TRIGGER
+// We look at the normal game time so it triggers exactly on a stable integer step boundary.
+let musicTriggerSubbeatCheck = Math.floor(relativeTime / SUB_BEAT_DURATION);
+
+if (musicTriggerSubbeatCheck === musicTriggerStep && backgroundMusicBuffer && !bgmStarted) {
+    bgmStarted = true;
+    warmupAudioContext();
+    bgmSourceNode = audioCtx.createBufferSource();
+    const bgmGainNode = audioCtx.createGain();
+    
+    bgmSourceNode.buffer = backgroundMusicBuffer;
+    
+                    // --- DYNAMIC VOLUME ADJUSTMENT ---
+                    let targetBgmVolume = 2.475;
+                    if (selectedSongId === 1) {
+                        targetBgmVolume = 0.4;
+                    }
                     
-                    bgmSourceNode.buffer = backgroundMusicBuffer;
-                    bgmGainNode.gain.setValueAtTime(2.475, audioClockTime + 0.05); 
-                    
-                    bgmSourceNode.connect(bgmGainNode);
-                    bgmGainNode.connect(audioCtx.destination);
-                    bgmSourceNode.start(audioClockTime + 0.05);
+                    if (selectedSongId === 1) {
+                        // 🛠️ TRUE AUDIO SHIFT (NO CLIPPING, NO JUMPING CLIFFS)
+                        // Your hi-hats and falling rectangles arrive locked to 'audioClockTime + 0.05'.
+                        // By subtracting 0.15s from that target, we force the browser's hardware audio engine 
+                        // to launch the audio track 0.15 seconds ahead of schedule relative to the visual notes.
+                        // Math.max ensures the browser never attempts to schedule a past timestamp if a frame drops.
+                        let preciseEarlierTime = Math.max(audioCtx.currentTime, audioClockTime + 0.05 +0.09);
+                        
+                        bgmGainNode.gain.setValueAtTime(targetBgmVolume, preciseEarlierTime);
+                        bgmSourceNode.connect(bgmGainNode);
+                        bgmGainNode.connect(audioCtx.destination);
+                        bgmSourceNode.start(preciseEarlierTime); // Plays seamlessly from 0.00s stream start!
+                    } else {
+                        // Standard, untouched playback pipeline for Song 2
+                        bgmGainNode.gain.setValueAtTime(targetBgmVolume, audioClockTime + 0.05);
+                        bgmSourceNode.connect(bgmGainNode);
+                        bgmGainNode.connect(audioCtx.destination);
+                        bgmSourceNode.start(audioClockTime + 0.05); 
+                    }
                 }
             }
         }
@@ -1686,35 +2065,65 @@ function gameLoop() {
             }
             
             activeNotes.forEach(note => {
-                let xPos = judgmentLineX + ((note.targetOffset - relativeTime) * 400);
+                let colWidth = canvas.width / 4;
+                let colLeftX = note.column * colWidth;
+                let yPos = phigrosBaselineY - ((note.targetOffset - relativeTime) * 450);
+
                 if (note.processed) {
                     let judgment = getJudgmentData(note.hitOffset, note.missedEntirely);
                     let displayOnset = note.hitTimestamp || note.targetOffset + WINDOW_MAX;
                     if (relativeTime <= displayOnset + 0.15) {
                         if (judgment.text !== '') {
                             ctx.save();
-                            ctx.textAlign = 'center';
-                            ctx.strokeStyle = '#000000';
-                            ctx.lineWidth = 6;
                             
-                            if (mobile) {
-                                ctx.font = `900 29px "Impact", "Arial Black", "Microsoft JhengHei"`;
-                                ctx.strokeText(judgment.text, judgmentLineX, trackBaseY - 64);
+                            if (currentMode === 'taiko') {
+                                // 1. FONT SIZE: Bumped from 22px to 26px (~1.2x bigger)
+                                ctx.font = 'bold 30px "Microsoft JhengHei", "Segoe UI", sans-serif';
                                 ctx.fillStyle = '#ffffff'; 
-                                ctx.fillText(judgment.text, judgmentLineX, trackBaseY - 64);
+                                ctx.textAlign = 'center';
+                                ctx.textBaseline = 'middle';
+                                
+                                // 2. Y-POSITION: Added 30 pixels to shift it down on the screen
+                                let taikoTextY = (canvas.height / 2) + 40;
+                                
+                                ctx.fillText(judgment.text, 220, taikoTextY);
                             } else {
-                                ctx.font = `900 36px "Impact", "Arial Black", "Microsoft JhengHei"`;
-                                ctx.strokeText(judgment.text, judgmentLineX, trackBaseY - 85);
+                                // Keep Phigros mode completely untouched
+                                ctx.fillStyle = 'rgba(255, 255, 255, 0.35)'; 
+                                ctx.fillRect(colLeftX + 4, phigrosBaselineY - 14, colWidth - 8, 38);
+                                ctx.font = 'bold 22px "Microsoft JhengHei", "Segoe UI", sans-serif';
                                 ctx.fillStyle = '#ffffff'; 
-                                ctx.fillText(judgment.text, judgmentLineX, trackBaseY - 85);
+                                ctx.textAlign = 'center';
+                                ctx.fillText(judgment.text, colLeftX + (colWidth / 2), phigrosBaselineY - 40);
                             }
+                            
                             ctx.restore();
                         }
                     }
-                } else {
-                    if (xPos > judgmentLineX - 40 && xPos < canvas.width + 40) {
-                        ctx.fillStyle = '#ffffff'; 
-                        ctx.beginPath(); ctx.arc(xPos, trackBaseY, 32, 0, Math.PI * 2); ctx.fill();
+                } 
+                else {
+                    if (currentMode === 'phigros') {
+                        if (yPos > 0 && yPos < phigrosBaselineY + 20) {
+                            ctx.fillStyle = '#00cec9';
+                            ctx.fillRect(colLeftX + 4, yPos - 14, colWidth - 8, 38);
+                        }
+                    } 
+                    else if (currentMode === 'taiko') {
+                        let judgmentLineX = 220; 
+                        let trackBaseY = getMappedY(30) + 45; 
+                        let xPos = judgmentLineX + ((note.targetOffset - relativeTime) * 450);
+                        
+                        if (xPos > 0 && xPos < canvas.width + 50) {
+                            ctx.save();
+                            ctx.beginPath();
+                            ctx.arc(xPos, trackBaseY, 35, 0, Math.PI * 2);
+                            ctx.fillStyle = '#ffffff';
+                            ctx.fill();
+                            ctx.strokeStyle = '#151518';
+                            ctx.lineWidth = 2;
+                            ctx.stroke();
+                            ctx.restore();
+                        }
                     }
                 }
             });
@@ -1779,23 +2188,33 @@ function gameLoop() {
                 }
             }
 
+            // 1. Create a variable to hold the active judgment to draw on top later
+            let taikoJudgmentToDraw = null;
+
             activeNotes.forEach(note => {
                 let colLeftX = note.column * colWidth;
                 let yPos = phigrosBaselineY - ((note.targetOffset - relativeTime) * 450);
+                
                 if (note.processed) {
                     let judgment = getJudgmentData(note.hitOffset, note.missedEntirely);
                     let displayOnset = note.hitTimestamp || note.targetOffset + WINDOW_MAX;
+                    
                     if (relativeTime <= displayOnset + 0.15) {
                         if (judgment.text !== '') {
-                            ctx.save();
-                            ctx.fillStyle = 'rgba(255, 255, 255, 0.35)'; 
-                            // FIXED: Realigned background gray flash layer parameters to match exact note boxes layout bounds
-                            ctx.fillRect(colLeftX + 4, phigrosBaselineY - 14, colWidth - 8, 38);
-                            ctx.font = 'bold 22px "Microsoft JhengHei", "Segoe UI", sans-serif';
-                            ctx.fillStyle = '#ffffff'; 
-                            ctx.textAlign = 'center';
-                            ctx.fillText(judgment.text, colLeftX + (colWidth / 2), phigrosBaselineY - 40);
-                            ctx.restore();
+                            // If we are in Taiko mode, save it to draw on the top front layer later
+                            if (currentMode === 'taiko') {
+                                taikoJudgmentToDraw = judgment.text;
+                            } else {
+                                // Keep Phigros mode rendering exactly as it was
+                                ctx.save();
+                                ctx.fillStyle = 'rgba(255, 255, 255, 0.35)'; 
+                                ctx.fillRect(colLeftX + 4, phigrosBaselineY - 14, colWidth - 8, 38);
+                                ctx.font = 'bold 22px "Microsoft JhengHei", "Segoe UI", sans-serif';
+                                ctx.fillStyle = '#ffffff'; 
+                                ctx.textAlign = 'center';
+                                ctx.fillText(judgment.text, colLeftX + (colWidth / 2), phigrosBaselineY - 40);
+                                ctx.restore();
+                            }
                         }
                     }
                 } else {
@@ -1805,6 +2224,36 @@ function gameLoop() {
                     }
                 }
             });
+            
+            // --- MISSING NOTES SWEEPER LOOP ---
+            let totalRegisteredNotesCount = activeNotes.length;
+            let processedNotesCount = 0;
+            activeNotes.forEach(note => {
+                if (relativeTime > note.targetOffset + WINDOW_MAX && !note.processed) {
+                    note.hitScore = 0.0;
+                    note.missedEntirely = true;
+                    note.processed = true; 
+                    currentCombo = 0; 
+                }
+                if (note.processed) processedNotesCount++;
+            });
+
+            // 🎯 2. ABSOLUTE FRONT LAYER: Draw Taiko text at the exact vertical middle
+            if (currentMode === 'taiko' && taikoJudgmentToDraw) {
+                ctx.save();
+                ctx.font = 'bold 28px "Microsoft JhengHei", "Segoe UI", sans-serif';
+                ctx.fillStyle = '#ffffff'; 
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                
+                // Shadow / Glow effect to guarantee visibility on any background layer
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+                ctx.shadowBlur = 6;
+                
+                // X: 220 (Judgment line), Y: Canvas middle height
+                ctx.fillText(taikoJudgmentToDraw, 220, canvas.height / 2);
+                ctx.restore();
+            }
 
             activeNotes.forEach(note => {
                 if (relativeTime > note.targetOffset + WINDOW_MAX && !note.processed) {
@@ -1815,8 +2264,22 @@ function gameLoop() {
                 }
             });
 
-            let finalNoteLimitOffset = (4 * BEAT_DURATION) + (256 * SUB_BEAT_DURATION);
-            if (relativeTime >= finalNoteLimitOffset + 1.5) {
+            // 🛠️ DYNAMIC OUTRO TERMINATION BALANCER
+            let finalNoteLimitOffset = 0;
+
+            if (selectedSongId === 1) {
+                // 🎹 SONG 1: 50 Cycle As (300 steps) + 1 extra beat (4 sub-beats) = 304 total steps
+                let totalSubBeats = 300 + 4;
+                finalNoteLimitOffset = (4 * BEAT_DURATION) + (totalSubBeats * SUB_BEAT_DURATION);
+            } else {
+                // 🎵 SONG 2: Original Backup 4/4 layout sizing (256 steps)
+                finalNoteLimitOffset = (4 * BEAT_DURATION) + (256 * SUB_BEAT_DURATION);
+            }
+
+            // 🛠️ EXTRA DELAY CONFIGURATOR: Wait exactly 2.0 seconds after the final notes fade for ring out
+            let safetyBuffer = (selectedSongId === 1) ? 2.0 : 1.5;
+
+            if (relativeTime >= finalNoteLimitOffset + safetyBuffer) {
                 endQuestion();
             }
         }
