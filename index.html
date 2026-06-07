@@ -381,8 +381,8 @@
 
         <div id="lb-song-subselector" style="display:none; flex-direction:column; gap:8px; margin-bottom:20px; align-items:center;">
             <p style="margin:0 0 5px 0; color:#a4b0be; font-size:14px; font-weight:bold;">選擇歌曲項目 View Records By Song:</p>
-            <button id="lb-btn-song1" class="btn" style="min-width:260px; padding:8px 15px; font-size:15px;" onclick="viewPhigrosSongLeaderboard(1)">刻在我心底的名字</button>
-            <button id="lb-btn-song2" class="btn" style="min-width:260px; padding:8px 15px; font-size:15px; opacity:0.4; cursor:not-allowed;" onclick="viewPhigrosSongLeaderboard(2)" disabled>🔒 Bonus Track 02</button>
+            <button id="lb-btn-song1" class="btn" style="min-width:260px; padding:8px 15px; font-size:15px;" onclick="viewPhigrosSongLeaderboard(1)">給愛麗絲</button>
+            <button id="lb-btn-song2" class="btn" style="min-width:260px; padding:8px 15px; font-size:15px;" onclick="viewPhigrosSongLeaderboard(2)">刻在我心底的名字</button>
             <button id="lb-btn-song3" class="btn" style="min-width:260px; padding:8px 15px; font-size:15px; opacity:0.4; cursor:not-allowed;" onclick="viewPhigrosSongLeaderboard(3)" disabled>🔒 Bonus Track 03</button>
         </div>
 
@@ -1296,6 +1296,43 @@ function handleHit(forcedColumn = null) {
     }
 }
 
+// ========================================================
+// LEADERBOARD TAB SWITCHING & INITIALIZATION LOGIC
+// ========================================================
+
+async function switchLeaderboardMode(m) {
+    currentLBMode = m;
+    const btnT = document.getElementById('lb-btn-taiko');
+    const btnP = document.getElementById('lb-btn-phigros');
+    const subSel = document.getElementById('lb-song-subselector');
+    
+    // Safety check: only modify elements if they actually exist in your HTML template layout
+    if (m === 'taiko') {
+        if (btnT) btnT.classList.add('selected');
+        if (btnP) btnP.classList.remove('selected');
+        if (subSel) subSel.style.display = 'none';
+        
+        // Fetch Taiko scores (defaults to song_id 1 internally)
+        let scores = await getCustomLeaderboardArray('taiko', 1);
+        renderLeaderboardTableContent(scores);
+    } else {
+        if (btnP) btnP.classList.add('selected');
+        if (btnT) btnT.classList.remove('selected');
+        if (subSel) subSel.style.display = 'flex';
+        
+        // 🛠️ FIX PHIGROS DEFAULT TAB:
+        // When switching to Phigros, explicitly light up Song 1 (給愛麗絲) button 
+        // and turn off Song 2 (刻在我心底的名字) button!
+        const btnS1 = document.getElementById('lb-btn-song1');
+        const btnS2 = document.getElementById('lb-btn-song2');
+        if (btnS1) btnS1.classList.add('selected');
+        if (btnS2) btnS2.classList.remove('selected');
+        
+        // 🛠️ Run the fetcher targeting Song 1 (給愛麗絲) so it shows the 40-0 defaults first!
+        await viewPhigrosSongLeaderboard(1);
+    }
+}
+
 window.addEventListener('wheel', (e) => {}, { passive: true });
 window.addEventListener('touchmove', (e) => {
     if (gameState === 'QUESTION_SCORE' || gameState === 'FINAL_SCOREBOARD') {
@@ -1485,47 +1522,60 @@ async function getCustomLeaderboardArray(modeKey, songId = 1) {
             .select('player_name, score')
             .eq('game_mode', modeKey);
             
+        let targetId = parseInt(songId); 
+
+        // 🛠️ THE SECRET TRANSLATION LAYER
+        // This swaps the IDs right before talking to Supabase so the old data matches your new UI rules!
         if (modeKey === 'phigros') {
-            query = query.eq('song_id', songId);
+            if (targetId === 1) {
+                targetId = 2; // UI requested Für Elise (1) -> Fetch from database slot 2 (empty/defaults)
+            } else if (targetId === 2) {
+                targetId = 1; // UI requested 刻在 (2) -> Fetch from database slot 1 (where old live records live)
+            }
         } else {
-            query = query.eq('song_id', 1);
+            targetId = 1; // Taiko stays locked to 1
         }
+            
+        query = query.eq('song_id', targetId);
 
         const { data, error } = await query
             .order('score', { ascending: false })
-            .limit(5);
+            .limit(15);
 
         if (error) throw error;
         
-        // Define your baseline default benchmarks
+        // --- DEFINE THE BENCHMARKS ---
         const taikoDefaults = [
-            { name: "Player 1", score: 20.0 },
-            { name: "Player 2", score: 15.0 },
-            { name: "Player 3", score: 10.0 },
-            { name: "Player 4", score: 5.0 },
-            { name: "Player 5", score: 0.0 }
+            { name: "Player 1", score: 20.0 }, { name: "Player 2", score: 15.0 },
+            { name: "Player 3", score: 10.0 }, { name: "Player 4", score: 5.0 }, { name: "Player 5", score: 0.0 }
         ];
 
-        const phigrosDefaults = [
-            { name: "Player 1", score: 40.0 },
-            { name: "Player 2", score: 30.0 },
-            { name: "Player 3", score: 20.0 },
-            { name: "Player 4", score: 10.0 },
-            { name: "Player 5", score: 0.0 }
+        // Based on the INCOMING songId from the UI:
+        // Song 1 (Für Elise) needs the 40 to 0 placeholders
+        const phigrosSong1Defaults = [
+            { name: "Player 1", score: 40.0 }, { name: "Player 2", score: 30.0 },
+            { name: "Player 3", score: 20.0 }, { name: "Player 4", score: 10.0 }, { name: "Player 5", score: 0.0 }
         ];
 
-        // Pick the right default list based on mode
-        const defaults = (modeKey === 'taiko') ? taikoDefaults : phigrosDefaults;
+        // Song 2 (刻在) already has live data, so defaults can just be 0
+        const phigrosSong2Defaults = [
+            { name: "Player 1", score: 0.0 }, { name: "Player 2", score: 0.0 },
+            { name: "Player 3", score: 0.0 }, { name: "Player 4", score: 0.0 }, { name: "Player 5", score: 0.0 }
+        ];
 
-        // Map live data from the database
+        // Use the original incoming songId to pick the right display placeholders
+        let defaults = taikoDefaults;
+        if (modeKey === 'phigros') {
+            defaults = (parseInt(songId) === 2) ? phigrosSong2Defaults : phigrosSong1Defaults;
+        }
+
         let liveScores = (data || []).map(row => ({ 
             name: row.player_name, 
             score: parseFloat(row.score) 
         }));
 
-        // 🧠 MAGIC LINES: If liveScores has fewer than 5 entries, pad it with the remaining defaults!
         while (liveScores.length < 5) {
-            let nextDefaultIndex = liveScores.length; // e.g. if we have 1 score, grab defaults[1] (Player 2)
+            let nextDefaultIndex = liveScores.length; 
             liveScores.push(defaults[nextDefaultIndex]);
         }
 
@@ -1555,29 +1605,25 @@ function closeLeaderboardOverlay() {
     document.getElementById('leaderboard-overlay').style.display = 'none';
 }
 
-// Updated: Added async/await to wait for the cloud database to download scores
-async function switchLeaderboardMode(m) {
-    currentLBMode = m;
-    const btnT = document.getElementById('lb-btn-taiko');
-    const btnP = document.getElementById('lb-btn-phigros');
-    const subSel = document.getElementById('lb-song-subselector');
+async function viewPhigrosSongLeaderboard(songId) {
+    currentLBSongId = songId;
     
-    if (m === 'taiko') {
-        btnT.classList.add('selected');
-        btnP.classList.remove('selected');
-        subSel.style.display = 'none';
-        
-        // Added await here to wait for live database
-        let scores = await getCustomLeaderboardArray('taiko');
-        renderLeaderboardTableContent(scores);
-    } else {
-        btnP.classList.add('selected');
-        btnT.classList.remove('selected');
-        subSel.style.display = 'flex';
-        
-        document.getElementById('lb-btn-song1').classList.add('selected');
-        await viewPhigrosSongLeaderboard(1);
+    // Clear selections across all inner buttons cleanly
+    for(let i = 1; i <= 3; i++) {
+        let b = document.getElementById(`lb-btn-song${i}`);
+        // 🛠️ SAFETY CHECK: Only modify class lists if the button element actually exists in the DOM
+        if (b) {
+            b.classList.remove('selected');
+        }
     }
+    let activeB = document.getElementById(`lb-btn-song${songId}`);
+    if (activeB) {
+        activeB.classList.add('selected');
+    }
+
+    // Fetch live data cleanly matching the new songId rules (1 = Für Elise, 2 = 刻在)
+    let scores = await getCustomLeaderboardArray('phigros', songId);
+    renderLeaderboardTableContent(scores);
 }
 
 // Updated: Added async/await to wait for the specific song track cloud leaderboard data
@@ -1598,8 +1644,11 @@ async function viewPhigrosSongLeaderboard(songId) {
 }
 
 function renderLeaderboardTableContent(records) {
+    // 1. Sort records from highest score to lowest score
     records.sort((a, b) => b.score - a.score);
-    let topFive = records.slice(0, 5);
+    
+    // 🛠️ INCREASED TO 15: Slice the top 15 records instead of 5
+    let topFifteen = records.slice(0, 15);
     
     let html = `<table class="lb-table">
                   <thead>
@@ -1611,9 +1660,11 @@ function renderLeaderboardTableContent(records) {
                   </thead>
                   <tbody>`;
     
-    for (let i = 0; i < 5; i++) {
-        let nameStr = (topFive[i] && topFive[i].name) ? topFive[i].name : "---";
-        let scoreStr = (topFive[i] && topFive[i].score !== undefined) ? topFive[i].score.toFixed(2) : "0.00";
+    // 🛠️ INCREASED TO 15: Loop exactly 15 times to build the rows
+    for (let i = 0; i < 15; i++) {
+        let nameStr = (topFifteen[i] && topFifteen[i].name) ? topFifteen[i].name : "---";
+        let scoreStr = (topFifteen[i] && topFifteen[i].score !== undefined) ? parseFloat(topFifteen[i].score).toFixed(2) : "0.00";
+        
         html += `<tr>
                     <td class="rank-num">#${i + 1}</td>
                     <td>${nameStr}</td>
@@ -1622,7 +1673,17 @@ function renderLeaderboardTableContent(records) {
     }
     
     html += `</tbody></table>`;
-    document.getElementById('lb-table-wrapper').innerHTML = html;
+    
+    // 2. Inject the HTML table markup into the wrapper box
+    const wrapper = document.getElementById('lb-table-wrapper');
+    if (wrapper) {
+        wrapper.innerHTML = html;
+        
+        // 🛠️ FORCE SCROLLBAR ON THE WRAPPER VIA JAVASCRIPT
+        // This locks the viewport frame and gives it a scrollbar so 15 rows don't explode your UI!
+        wrapper.style.maxHeight = "360px"; // You can change 360px to whatever height fits best
+        wrapper.style.overflowY = "auto";
+    }
 }
 
 // ========================================================
@@ -1719,8 +1780,17 @@ async function commitScoreSubmissionToStorage() {
         submitBtn.innerText = "上傳中...";
     }
     
-    // Track active level chart layout context
-    let songIdToSave = (currentMode === 'taiko') ? 1 : (typeof currentSongId !== 'undefined' ? currentSongId : 1);
+    // 🛠️ MATCHING UPLOAD TRANSLATION LAYER:
+    // If mode is Taiko, lock to database slot 1. 
+    // If Phigros, swap the IDs behind the scenes so the database matches your new UI rules!
+    let songIdToSave = 1;
+    if (currentMode === 'phigros' && typeof selectedSongId !== 'undefined') {
+        if (selectedSongId === 1) {
+            songIdToSave = 2; // UI says Song 1 (Für Elise) -> Save to database slot 2 (empty/fresh)
+        } else if (selectedSongId === 2) {
+            songIdToSave = 1; // UI says Song 2 (刻在) -> Save to database slot 1 (where old records live)
+        }
+    }
 
     try {
         // FIXED: Swapped 'supabase' to 'window.supabaseClient' to match the head module pipelines cleanly
