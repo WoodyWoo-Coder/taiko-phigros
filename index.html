@@ -2069,6 +2069,9 @@ if (musicTriggerSubbeatCheck === musicTriggerStep && backgroundMusicBuffer && !b
                 let colLeftX = note.column * colWidth;
                 let yPos = phigrosBaselineY - ((note.targetOffset - relativeTime) * 450);
 
+                // 🎯 Automatically matches the mobile check you already use
+                let isMobile = iSMobileDevice();
+
                 if (note.processed) {
                     let judgment = getJudgmentData(note.hitOffset, note.missedEntirely);
                     let displayOnset = note.hitTimestamp || note.targetOffset + WINDOW_MAX;
@@ -2077,14 +2080,16 @@ if (musicTriggerSubbeatCheck === musicTriggerStep && backgroundMusicBuffer && !b
                             ctx.save();
                             
                             if (currentMode === 'taiko') {
-                                // 1. FONT SIZE: Bumped from 22px to 26px (~1.2x bigger)
-                                ctx.font = 'bold 30px "Microsoft JhengHei", "Segoe UI", sans-serif';
+                                ctx.font = 'bold 26px "Microsoft JhengHei", "Segoe UI", sans-serif';
                                 ctx.fillStyle = '#ffffff'; 
                                 ctx.textAlign = 'center';
                                 ctx.textBaseline = 'middle';
                                 
-                                // 2. Y-POSITION: Added 30 pixels to shift it down on the screen
-                                let taikoTextY = (canvas.height / 2) + 40;
+                                // 🎯 TEXT POSITION: Shifts up 10px on mobile (+20 instead of +30)
+                                let taikoTextY = (canvas.height / 2) + 30;
+                                if (isMobile) {
+                                    taikoTextY = (canvas.height / 2) + 20; 
+                                }
                                 
                                 ctx.fillText(judgment.text, 220, taikoTextY);
                             } else {
@@ -2110,7 +2115,13 @@ if (musicTriggerSubbeatCheck === musicTriggerStep && backgroundMusicBuffer && !b
                     } 
                     else if (currentMode === 'taiko') {
                         let judgmentLineX = 220; 
+                        
+                        // 🎯 CIRCLE POSITION: Shifts up 40px on mobile (+5 instead of +45)
                         let trackBaseY = getMappedY(30) + 45; 
+                        if (isMobile) {
+                            trackBaseY = getMappedY(30) + 5; 
+                        }
+                        
                         let xPos = judgmentLineX + ((note.targetOffset - relativeTime) * 450);
                         
                         if (xPos > 0 && xPos < canvas.width + 50) {
